@@ -1,13 +1,13 @@
-#Hmm#
+# Hmm s#
 
 if i can build my own pitch shifting and formant adjustment software likes koigoe
 
-#TD-PSOLA#
+# TD-PSOLA #
 
 https://courses.engr.illinois.edu/ece420/sp2023/lab5/lab/#overlap-add-algorithm
 
 
-#impl#
+# impl #
 
 Rubberband
 https://github.com/breakfastquay/rubberband
@@ -19,7 +19,7 @@ python implementation:
 https://github.com/sannawag/TD-PSOLA
 
 
-#audio-processing.sln for windows env#
+# audio-processing.sln for windows env #
 
 - NOTE: windows is not ideal dev env for rubberband project... lots of env pre-setting
 - git pull rubberband into parent of this repo folder
@@ -37,14 +37,14 @@ https://github.com/sannawag/TD-PSOLA
 |- ...
 ```
 
-#bela.io board#
+# bela.io board #
 
 for Bela dev board, can refer to NE10 library for data manipulation
 https://projectne10.github.io/Ne10/doc
 
-#from gpt#
+# from gpt #
 
-##how to use ne10 library implement TD-POSLA for pitch and formant adjustment##
+## how to use ne10 library implement TD-POSLA for pitch and formant adjustment ##
 
 To implement TD-POSLA (Time Domain Pitch-Synchronous OverLap and Add) for pitch and formant adjustment using the NE10 library, you would need to follow these general steps:
 
