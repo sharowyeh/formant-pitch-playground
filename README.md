@@ -1,4 +1,4 @@
-# Hmm s#
+# Hmm #
 
 if i can build my own pitch shifting and formant adjustment software likes koigoe
 
