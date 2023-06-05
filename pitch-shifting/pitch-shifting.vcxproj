@@ -149,7 +149,7 @@
     <ClCompile Include="pitch-shifting.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\..\projects\tts\pitch-shift\rubberband\otherbuilds\rubberband-library.vcxproj">
+    <ProjectReference Include="..\..\rubberband\otherbuilds\rubberband-library.vcxproj">
       <Project>{020ceb11-ef4e-400e-971d-a35db69d7cf9}</Project>
     </ProjectReference>
   </ItemGroup>
