@@ -231,6 +231,28 @@ void print_usage(bool fullHelp, bool isR3, std::string myName) {
     }
 }
 
+static int portAudioCallback(
+	const void* in_buffer, void* out_buffer,
+	unsigned long frames_buffer,
+	const PaStreamCallbackTimeInfo* time_info,
+	PaStreamCallbackFlags flags,
+	void *user_data) {
+
+	// DEBUG: just copy
+	float *in = (float*)in_buffer;
+	float *out = (float*)out_buffer;
+	for (int i = 0; i < frames_buffer; i++) {
+		*out = *in;
+		out++;
+		*out = *in;
+		out++;
+		in++;
+	}
+	return 0;
+}
+
+
+PaStream *stream;
 void checkAudioDevices() {
 	// list all
 	int num_devices = 0;
@@ -246,15 +268,59 @@ void checkAudioDevices() {
 	for (int i = 0; i < num_devices; i++) {
 		dev_info = Pa_GetDeviceInfo(i);
 		cerr << "DEV " << i << " " << dev_info->name << " inp ch " << dev_info->maxInputChannels << " out ch " << dev_info->maxOutputChannels << endl;
+		cerr << "       " << "s " << dev_info->defaultSampleRate << endl;
 	}
+	
+	int in_dev_num = 8; // for my desktop setup
+	int out_dev_num = 14; // for my desktop setup
+	const PaDeviceInfo* in_dev = Pa_GetDeviceInfo(in_dev_num);
+	const PaDeviceInfo* out_dev = Pa_GetDeviceInfo(out_dev_num);
+
+	cerr << "INP " << in_dev_num << " " << in_dev->name << " inp ch " << in_dev->maxInputChannels << " out ch " << in_dev->maxOutputChannels << endl;
+	cerr << "       " << "s " << in_dev->defaultSampleRate << " inp delay " << in_dev->defaultLowInputLatency << endl;
+	cerr << "OUT " << out_dev_num << " " << out_dev->name << " out ch " << out_dev->maxInputChannels << " out ch " << out_dev->maxOutputChannels << endl;
+	cerr << "       " << "s " << out_dev->defaultSampleRate << " out delay " << out_dev->defaultLowOutputLatency << endl;
+	
+	double srate = in_dev->defaultSampleRate;
+	unsigned long frames_buff = 1024; // frames per buffer
+	PaStreamParameters in_param;
+	PaStreamParameters out_param;
+
+	memset(&in_param, 0, sizeof(in_param));
+	in_param.channelCount = in_dev->maxInputChannels;
+	in_param.device = in_dev_num;
+	in_param.sampleFormat = paFloat32;
+	in_param.suggestedLatency = in_dev->defaultLowInputLatency;
+	in_param.hostApiSpecificStreamInfo = NULL;//See you specific host's API docs for info on using this field
+
+	memset(&out_param, 0, sizeof(out_param));
+	out_param.channelCount = out_dev->maxOutputChannels;
+	out_param.device = out_dev_num;
+	out_param.sampleFormat = paFloat32;
+	out_param.suggestedLatency = out_dev->defaultLowOutputLatency;
+	out_param.hostApiSpecificStreamInfo = NULL;
+
+	PaError er = Pa_OpenStream(
+		&stream,
+		&in_param,
+		&out_param,
+		srate,
+		frames_buff,
+		paNoFlag,
+		portAudioCallback,
+		(void *)NULL
+	);
+
+	cerr << "Open stream result " << er << endl;
 }
 
 int main(int argc, char **argv)
 {
 	Pa_Initialize();
-
 	checkAudioDevices();
-
+	Pa_StartStream(stream);
+	Pa_Sleep(60000);
+	Pa_StopStream(stream);
 	Pa_Terminate();
 
     double ratio = 1.0;
@@ -891,7 +957,7 @@ int main(int argc, char **argv)
         }                
 
         bool final = false;
-        
+        //TODO: check here for realtime via portaudio
         while (!final) {
 
             thisBlockSize = bs;
@@ -915,7 +981,7 @@ int main(int argc, char **argv)
                     break;
                 }
             }
-
+			//TODO: change ibuf reading
             int count = -1;
             if ((count = sf_readf_float(sndfile, ibuf, thisBlockSize)) < 0) {
                 break;
@@ -1113,7 +1179,7 @@ int main(int argc, char **argv)
                     ibuf[i * channels + c] = value;
                 }
             }
-                
+            //TODO: change ibuf output
             sf_writef_float(sndfileOut, ibuf, thisBlockSize);
         }
     }
