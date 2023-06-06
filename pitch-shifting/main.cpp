@@ -60,6 +60,9 @@ static void usleep(unsigned long usec) {
 #define strdup _strdup
 #endif
 
+// for port audio control input/output devices
+#include <portaudio.h>
+
 using RubberBand::RubberBandStretcher;
 
 using std::cerr;
@@ -228,8 +231,32 @@ void print_usage(bool fullHelp, bool isR3, std::string myName) {
     }
 }
 
+void checkAudioDevices() {
+	// list all
+	int num_devices = 0;
+	PaErrorCode err = paNoError;
+	num_devices = Pa_GetDeviceCount();
+	if (num_devices < 0) {
+		err = (PaErrorCode)num_devices;
+		cerr << "ERROR: Pa_CountDevices returned " << err << endl;
+		return;
+	}
+
+	const PaDeviceInfo* dev_info;
+	for (int i = 0; i < num_devices; i++) {
+		dev_info = Pa_GetDeviceInfo(i);
+		cerr << "DEV " << i << " " << dev_info->name << " inp ch " << dev_info->maxInputChannels << " out ch " << dev_info->maxOutputChannels << endl;
+	}
+}
+
 int main(int argc, char **argv)
 {
+	Pa_Initialize();
+
+	checkAudioDevices();
+
+	Pa_Terminate();
+
     double ratio = 1.0;
     double duration = 0.0;
     double pitchshift = 0.0;

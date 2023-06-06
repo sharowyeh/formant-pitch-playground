@@ -71,19 +71,19 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>$(ProjectDir)..\..\rubberband;$(ProjectDir)..\libsndfile-1.2.0\win64\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)..\..\rubberband;$(ProjectDir)..\libsndfile-1.2.0\win64\include;$(ProjectDir)..\..\portaudio\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(ProjectDir)..\libsndfile-1.2.0\win32\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>$(ProjectDir)..\..\rubberband;$(ProjectDir)..\libsndfile-1.2.0\win64\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)..\..\rubberband;$(ProjectDir)..\libsndfile-1.2.0\win64\include;$(ProjectDir)..\..\portaudio\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(ProjectDir)..\libsndfile-1.2.0\win32\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(ProjectDir)..\..\rubberband;$(ProjectDir)..\libsndfile-1.2.0\win64\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)..\..\rubberband;$(ProjectDir)..\libsndfile-1.2.0\win64\include;$(ProjectDir)..\..\portaudio\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(ProjectDir)..\libsndfile-1.2.0\win64\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(ProjectDir)..\..\rubberband;$(ProjectDir)..\libsndfile-1.2.0\win64\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)..\..\rubberband;$(ProjectDir)..\libsndfile-1.2.0\win64\include;$(ProjectDir)..\..\portaudio\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(ProjectDir)..\libsndfile-1.2.0\win64\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -149,6 +149,9 @@
     <ClCompile Include="pitch-shifting.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\portaudio\build\msvc\portaudio.vcxproj">
+      <Project>{0a18a071-125e-442f-aff7-a3f68abecf99}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\..\rubberband\otherbuilds\rubberband-library.vcxproj">
       <Project>{020ceb11-ef4e-400e-971d-a35db69d7cf9}</Project>
     </ProjectReference>
