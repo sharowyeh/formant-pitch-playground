@@ -37,6 +37,11 @@ https://github.com/sannawag/TD-PSOLA
 |- ...
 ```
 
+# py version #
+
+- locate at py folder, using python v3.10.12 for dev env on my macos m1
+- py/requirements.txt
+
 # bela.io board #
 
 for Bela dev board, can refer to NE10 library for data manipulation
