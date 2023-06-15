@@ -42,6 +42,21 @@ https://github.com/sannawag/TD-PSOLA
 - locate at py folder, using python v3.10.12 for dev env on my macos m1
 - py/requirements.txt
 
+# Mac M1 version #
+- refer to .vscode folder
+- for rubberband functions, fetch github source code on parent folder for its profiler namespace(for logger or something)
+- but still using homebrew installed rubberband libraries for compiling linker
+- brew install: rubberband, libsndfile, portaudio
+- for vscode c/c++ extension:
+  - /opt/homebrew/include
+  - /Library/Developer/CommandLineTools/xxxx
+- for vscode compiling task:
+  - -I/opt/homebrew/include
+  - -I<path_to_rubberband_repo>/<for_profiler_src>
+  - -L/opt/homebrew/lib
+  - -lrubberband -lsndfile -lportaudio (for libxxxxx.dylib)
+- for arm64 debugger tool, try lldb instead of gdb
+
 # bela.io board #
 
 for Bela dev board, can refer to NE10 library for data manipulation
