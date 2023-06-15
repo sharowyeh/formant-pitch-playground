@@ -9,7 +9,13 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${fileDirname}/${fileBasenameNoExtension}.out",
-            "args": [],
+            "args": [
+                "--pitch=9",
+                "--fine",
+                "--formant",
+                "--realtime",
+                "--ignore-clipping"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

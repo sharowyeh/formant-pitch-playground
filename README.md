@@ -57,6 +57,11 @@ https://github.com/sannawag/TD-PSOLA
   - -lrubberband -lsndfile -lportaudio (for libxxxxx.dylib)
 - for arm64 debugger tool, try lldb instead of gdb
 
+- c macro for mac/m1: 
+  - `> gcc -dM -E - < /dev/null | egrep -i 'os_|mac|apple'`
+  - `#ifdef __arm64__`
+  - `#include "TargetConditionals.h"` then use macro TARGET_xxx from obj-c example
+
 # bela.io board #
 
 for Bela dev board, can refer to NE10 library for data manipulation
