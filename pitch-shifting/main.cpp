@@ -36,6 +36,9 @@
 
 #include <fstream>
 
+// for rubberband profiler to dump signal process information,
+// get rubberband source code from github within same system installed version
+// and add the folder to project include path
 #include "src/common/sysutils.h"
 #include "src/common/Profiler.h"
 
@@ -271,8 +274,8 @@ void checkAudioDevices() {
 		cerr << "       " << "s " << dev_info->defaultSampleRate << endl;
 	}
 	
-	int in_dev_num = 8; // for my desktop setup
-	int out_dev_num = 14; // for my desktop setup
+	int in_dev_num = 0; // for my desktop setup
+	int out_dev_num = 1; // for my desktop setup
 	const PaDeviceInfo* in_dev = Pa_GetDeviceInfo(in_dev_num);
 	const PaDeviceInfo* out_dev = Pa_GetDeviceInfo(out_dev_num);
 
@@ -424,6 +427,12 @@ int main(int argc, char **argv)
                                      longOpts, &optionIndex);
         if (optionChar == -1) break;
 
+#ifdef __APPLE_CC__
+        // getopt behavior is different in Xcode sdk? likes --pitch=9
+        cerr << "ch:" << (char)optionChar << " idx:" << optionIndex << " opt:" << longOpts[optionIndex].name;
+        cerr << " ind:" << optind << " arg:" << ((optarg && strlen(optarg) > 0) ? optarg : "NULL") << endl;
+#endif
+
         switch (optionChar) {
         case 'h': help = true; break;
         case 'H': fullHelp = true; break;
@@ -485,7 +494,11 @@ int main(int argc, char **argv)
     }
     else {
         fileName = (char*)malloc(sizeof(char) * 16);
+#ifdef _WIN32
         strcpy_s(fileName, 16, "test.wav");
+#else
+        strcpy(fileName, "test.wav");
+#endif
         argc++;
     }
     // given both input and output wav files
@@ -494,7 +507,11 @@ int main(int argc, char **argv)
     }
     else {
         fileNameOut = (char*)malloc(sizeof(char) * 16);
+#ifdef _WIN32
         strcpy_s(fileNameOut, 16, "test_out.wav");
+#else
+        strcpy(fileNameOut, "test.out.wav");
+#endif
         argc++;
     }
 
@@ -526,32 +543,32 @@ int main(int argc, char **argv)
         }
     }
 
-    if (crispness >= 0 && crispchanged) {
-        cerr << "WARNING: Both crispness option and transients, lamination or window options" << endl;
-        cerr << "         provided -- crispness will override these other options" << endl;
-    }
+    // if (crispness >= 0 && crispchanged) {
+    //     cerr << "WARNING: Both crispness option and transients, lamination or window options" << endl;
+    //     cerr << "         provided -- crispness will override these other options" << endl;
+    // }
 
-    if (hqpitch && freqOrPitchMapSpecified) {
-        cerr << "WARNING: High-quality pitch mode selected, but frequency or pitch map file is" << endl;
-        cerr << "         provided -- pitch mode will be overridden by high-consistency mode" << endl;
-        hqpitch = false;
-    }
+    // if (hqpitch && freqOrPitchMapSpecified) {
+    //     cerr << "WARNING: High-quality pitch mode selected, but frequency or pitch map file is" << endl;
+    //     cerr << "         provided -- pitch mode will be overridden by high-consistency mode" << endl;
+    //     hqpitch = false;
+    // }
 
-    if (precisiongiven) {
-        cerr << "NOTE: The -L/--loose and -P/--precise options are both ignored -- precise" << endl;
-        cerr << "      became the default in v1.6 and loose was removed in v3.0" << endl;
-    }
+    // if (precisiongiven) {
+    //     cerr << "NOTE: The -L/--loose and -P/--precise options are both ignored -- precise" << endl;
+    //     cerr << "      became the default in v1.6 and loose was removed in v3.0" << endl;
+    // }
     
-    switch (crispness) {
-    case -1: crispness = 5; break;
-    case 0: detector = CompoundDetector; transients = NoTransients; lamination = false; longwin = true; shortwin = false; break;
-    case 1: detector = SoftDetector; transients = Transients; lamination = false; longwin = true; shortwin = false; break;
-    case 2: detector = CompoundDetector; transients = NoTransients; lamination = false; longwin = false; shortwin = false; break;
-    case 3: detector = CompoundDetector; transients = NoTransients; lamination = true; longwin = false; shortwin = false; break;
-    case 4: detector = CompoundDetector; transients = BandLimitedTransients; lamination = true; longwin = false; shortwin = false; break;
-    case 5: detector = CompoundDetector; transients = Transients; lamination = true; longwin = false; shortwin = false; break;
-    case 6: detector = CompoundDetector; transients = Transients; lamination = false; longwin = false; shortwin = true; break;
-    };
+    // switch (crispness) {
+    // case -1: crispness = 5; break;
+    // case 0: detector = CompoundDetector; transients = NoTransients; lamination = false; longwin = true; shortwin = false; break;
+    // case 1: detector = SoftDetector; transients = Transients; lamination = false; longwin = true; shortwin = false; break;
+    // case 2: detector = CompoundDetector; transients = NoTransients; lamination = false; longwin = false; shortwin = false; break;
+    // case 3: detector = CompoundDetector; transients = NoTransients; lamination = true; longwin = false; shortwin = false; break;
+    // case 4: detector = CompoundDetector; transients = BandLimitedTransients; lamination = true; longwin = false; shortwin = false; break;
+    // case 5: detector = CompoundDetector; transients = Transients; lamination = true; longwin = false; shortwin = false; break;
+    // case 6: detector = CompoundDetector; transients = Transients; lamination = false; longwin = false; shortwin = true; break;
+    // };
 
     if (!quiet) {
         if (finer) {
@@ -577,95 +594,95 @@ int main(int argc, char **argv)
     }
 
     std::map<size_t, size_t> timeMap;
-    if (timeMapFile != "") {
-        std::ifstream ifile(timeMapFile.c_str());
-        if (!ifile.is_open()) {
-            cerr << "ERROR: Failed to open time map file \""
-                 << timeMapFile << "\"" << endl;
-            return 1;
-        }
-        std::string line;
-        int lineno = 0;
-        while (!ifile.eof()) {
-            std::getline(ifile, line);
-            while (line.length() > 0 && line[0] == ' ') {
-                line = line.substr(1);
-            }
-            if (line == "") {
-                ++lineno;
-                continue;
-            }
-            std::string::size_type i = line.find_first_of(" ");
-            if (i == std::string::npos) {
-                cerr << "ERROR: Time map file \"" << timeMapFile
-                     << "\" is malformed at line " << lineno << endl;
-                return 1;
-            }
-            size_t source = atoi(line.substr(0, i).c_str());
-            while (i < line.length() && line[i] == ' ') ++i;
-            size_t target = atoi(line.substr(i).c_str());
-            timeMap[source] = target;
-            if (debug > 0) {
-                cerr << "adding mapping from " << source << " to " << target << endl;
-            }
-            ++lineno;
-        }
-        ifile.close();
+    // if (timeMapFile != "") {
+    //     std::ifstream ifile(timeMapFile.c_str());
+    //     if (!ifile.is_open()) {
+    //         cerr << "ERROR: Failed to open time map file \""
+    //              << timeMapFile << "\"" << endl;
+    //         return 1;
+    //     }
+    //     std::string line;
+    //     int lineno = 0;
+    //     while (!ifile.eof()) {
+    //         std::getline(ifile, line);
+    //         while (line.length() > 0 && line[0] == ' ') {
+    //             line = line.substr(1);
+    //         }
+    //         if (line == "") {
+    //             ++lineno;
+    //             continue;
+    //         }
+    //         std::string::size_type i = line.find_first_of(" ");
+    //         if (i == std::string::npos) {
+    //             cerr << "ERROR: Time map file \"" << timeMapFile
+    //                  << "\" is malformed at line " << lineno << endl;
+    //             return 1;
+    //         }
+    //         size_t source = atoi(line.substr(0, i).c_str());
+    //         while (i < line.length() && line[i] == ' ') ++i;
+    //         size_t target = atoi(line.substr(i).c_str());
+    //         timeMap[source] = target;
+    //         if (debug > 0) {
+    //             cerr << "adding mapping from " << source << " to " << target << endl;
+    //         }
+    //         ++lineno;
+    //     }
+    //     ifile.close();
 
-        if (!quiet) {
-            cerr << "Read " << timeMap.size() << " line(s) from time map file" << endl;
-        }
-    }
+    //     if (!quiet) {
+    //         cerr << "Read " << timeMap.size() << " line(s) from time map file" << endl;
+    //     }
+    // }
 
     std::map<size_t, double> freqMap;
 
-    if (freqOrPitchMapSpecified) {
-        std::string file = freqMapFile;
-        bool convertFromPitch = false;
-        if (pitchMapFile != "") {
-            file = pitchMapFile;
-            convertFromPitch = true;
-        }
-        std::ifstream ifile(file.c_str());
-        if (!ifile.is_open()) {
-            cerr << "ERROR: Failed to open map file \"" << file << "\"" << endl;
-            return 1;
-        }
-        std::string line;
-        int lineno = 0;
-        while (!ifile.eof()) {
-            std::getline(ifile, line);
-            while (line.length() > 0 && line[0] == ' ') {
-                line = line.substr(1);
-            }
-            if (line == "") {
-                ++lineno;
-                continue;
-            }
-            std::string::size_type i = line.find_first_of(" ");
-            if (i == std::string::npos) {
-                cerr << "ERROR: Map file \"" << file
-                     << "\" is malformed at line " << lineno << endl;
-                return 1;
-            }
-            size_t source = atoi(line.substr(0, i).c_str());
-            while (i < line.length() && line[i] == ' ') ++i;
-            double freq = atof(line.substr(i).c_str());
-            if (convertFromPitch) {
-                freq = pow(2.0, freq / 12.0);
-            }
-            freqMap[source] = freq;
-            if (debug > 0) {
-                cerr << "adding mapping for source frame " << source << " of frequency multiplier " << freq << endl;
-            }
-            ++lineno;
-        }
-        ifile.close();
+    // if (freqOrPitchMapSpecified) {
+    //     std::string file = freqMapFile;
+    //     bool convertFromPitch = false;
+    //     if (pitchMapFile != "") {
+    //         file = pitchMapFile;
+    //         convertFromPitch = true;
+    //     }
+    //     std::ifstream ifile(file.c_str());
+    //     if (!ifile.is_open()) {
+    //         cerr << "ERROR: Failed to open map file \"" << file << "\"" << endl;
+    //         return 1;
+    //     }
+    //     std::string line;
+    //     int lineno = 0;
+    //     while (!ifile.eof()) {
+    //         std::getline(ifile, line);
+    //         while (line.length() > 0 && line[0] == ' ') {
+    //             line = line.substr(1);
+    //         }
+    //         if (line == "") {
+    //             ++lineno;
+    //             continue;
+    //         }
+    //         std::string::size_type i = line.find_first_of(" ");
+    //         if (i == std::string::npos) {
+    //             cerr << "ERROR: Map file \"" << file
+    //                  << "\" is malformed at line " << lineno << endl;
+    //             return 1;
+    //         }
+    //         size_t source = atoi(line.substr(0, i).c_str());
+    //         while (i < line.length() && line[i] == ' ') ++i;
+    //         double freq = atof(line.substr(i).c_str());
+    //         if (convertFromPitch) {
+    //             freq = pow(2.0, freq / 12.0);
+    //         }
+    //         freqMap[source] = freq;
+    //         if (debug > 0) {
+    //             cerr << "adding mapping for source frame " << source << " of frequency multiplier " << freq << endl;
+    //         }
+    //         ++lineno;
+    //     }
+    //     ifile.close();
 
-        if (!quiet) {
-            cerr << "Read " << freqMap.size() << " line(s) from frequency map file" << endl;
-        }
-    }
+    //     if (!quiet) {
+    //         cerr << "Read " << freqMap.size() << " line(s) from frequency map file" << endl;
+    //     }
+    // }
 
     // move input/output file name right aftering getopt resolver
     /*char *fileName = strdup(argv[optind++]);
@@ -756,59 +773,59 @@ int main(int argc, char **argv)
     }
 
     RubberBandStretcher::Options options = 0;
-    if (finer) {
-        options = RubberBandStretcher::OptionEngineFiner;
-    }
+    // if (finer) {
+    //     options = RubberBandStretcher::OptionEngineFiner;
+    // }
     
-    if (realtime)    options |= RubberBandStretcher::OptionProcessRealTime;
-    if (!lamination) options |= RubberBandStretcher::OptionPhaseIndependent;
-    if (longwin)     options |= RubberBandStretcher::OptionWindowLong;
-    if (shortwin)    options |= RubberBandStretcher::OptionWindowShort;
-    if (smoothing)   options |= RubberBandStretcher::OptionSmoothingOn;
-    if (formant)     options |= RubberBandStretcher::OptionFormantPreserved;
-    if (together)    options |= RubberBandStretcher::OptionChannelsTogether;
+    // if (realtime)    options |= RubberBandStretcher::OptionProcessRealTime;
+    // if (!lamination) options |= RubberBandStretcher::OptionPhaseIndependent;
+    // if (longwin)     options |= RubberBandStretcher::OptionWindowLong;
+    // if (shortwin)    options |= RubberBandStretcher::OptionWindowShort;
+    // if (smoothing)   options |= RubberBandStretcher::OptionSmoothingOn;
+    // if (formant)     options |= RubberBandStretcher::OptionFormantPreserved;
+    // if (together)    options |= RubberBandStretcher::OptionChannelsTogether;
 
-    if (freqOrPitchMapSpecified) {
-        options |= RubberBandStretcher::OptionPitchHighConsistency;
-    } else if (hqpitch) {
-        options |= RubberBandStretcher::OptionPitchHighQuality;
-    }
+    // if (freqOrPitchMapSpecified) {
+    //     options |= RubberBandStretcher::OptionPitchHighConsistency;
+    // } else if (hqpitch) {
+    //     options |= RubberBandStretcher::OptionPitchHighQuality;
+    // }
 
-    switch (threading) {
-    case 0:
-        options |= RubberBandStretcher::OptionThreadingAuto;
-        break;
-    case 1:
-        options |= RubberBandStretcher::OptionThreadingNever;
-        break;
-    case 2:
-        options |= RubberBandStretcher::OptionThreadingAlways;
-        break;
-    }
+    // switch (threading) {
+    // case 0:
+    //     options |= RubberBandStretcher::OptionThreadingAuto;
+    //     break;
+    // case 1:
+    //     options |= RubberBandStretcher::OptionThreadingNever;
+    //     break;
+    // case 2:
+    //     options |= RubberBandStretcher::OptionThreadingAlways;
+    //     break;
+    // }
 
-    switch (transients) {
-    case NoTransients:
-        options |= RubberBandStretcher::OptionTransientsSmooth;
-        break;
-    case BandLimitedTransients:
-        options |= RubberBandStretcher::OptionTransientsMixed;
-        break;
-    case Transients:
-        options |= RubberBandStretcher::OptionTransientsCrisp;
-        break;
-    }
+    // switch (transients) {
+    // case NoTransients:
+    //     options |= RubberBandStretcher::OptionTransientsSmooth;
+    //     break;
+    // case BandLimitedTransients:
+    //     options |= RubberBandStretcher::OptionTransientsMixed;
+    //     break;
+    // case Transients:
+    //     options |= RubberBandStretcher::OptionTransientsCrisp;
+    //     break;
+    // }
 
-    switch (detector) {
-    case CompoundDetector:
-        options |= RubberBandStretcher::OptionDetectorCompound;
-        break;
-    case PercussiveDetector:
-        options |= RubberBandStretcher::OptionDetectorPercussive;
-        break;
-    case SoftDetector:
-        options |= RubberBandStretcher::OptionDetectorSoft;
-        break;
-    }
+    // switch (detector) {
+    // case CompoundDetector:
+    //     options |= RubberBandStretcher::OptionDetectorCompound;
+    //     break;
+    // case PercussiveDetector:
+    //     options |= RubberBandStretcher::OptionDetectorPercussive;
+    //     break;
+    // case SoftDetector:
+    //     options |= RubberBandStretcher::OptionDetectorSoft;
+    //     break;
+    // }
 
     if (pitchshift != 0.0) {
         frequencyshift *= pow(2.0, pitchshift / 12.0);
@@ -1147,6 +1164,8 @@ int main(int argc, char **argv)
             cerr << "\r    " << endl;
         }
 
+        // NOTE: get availble processed blocks from modified gain and clipping
+        //       after nothing can read from input raised final=true until successful=true
         int avail;
         while ((avail = ts.available()) >= 0) {
             if (debug > 1) {
