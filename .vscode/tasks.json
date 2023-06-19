@@ -9,8 +9,10 @@
                 "-fansi-escape-codes",
                 "-g",
                 "${file}",
+                "${fileDirname}/stretcher.cpp",
                 "-o",
                 "${fileDirname}/${fileBasenameNoExtension}.out",
+                "-I${fileDirname}",
                 "-I${workspaceFolder}/../rubberband",
                 "-I/opt/homebrew/include",
                 // "-L${workspaceFolder}/../rubberband/build", //wo using own built binaries

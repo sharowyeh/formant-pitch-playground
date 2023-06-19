@@ -23,6 +23,8 @@
 
 // source code from rubberband repo, modify references for alt project
 
+#include "stretcher.hpp"
+
 #include "rubberband/RubberBandStretcher.h"
 
 #include <iostream>
@@ -45,6 +47,12 @@
 #ifdef _MSC_VER
 // for win32, original getopt source code uses unsecure c runtime, workaround applied
 #include "../getopt/getopt.h"
+// for usleep from unistd
+#include <windows.h>
+static void usleep(unsigned long usec) {
+    ::Sleep(usec == 0 ? 0 : usec < 1000 ? 1 : usec / 1000);
+}
+#define strdup _strdup
 #else
 #include <getopt.h>
 #include <unistd.h>
@@ -53,14 +61,6 @@
 
 #ifdef _WIN32
 using RubberBand::gettimeofday;
-#endif
-
-#ifdef _MSC_VER
-#include <windows.h>
-static void usleep(unsigned long usec) {
-    ::Sleep(usec == 0 ? 0 : usec < 1000 ? 1 : usec / 1000);
-}
-#define strdup _strdup
 #endif
 
 // for port audio control input/output devices
@@ -319,12 +319,12 @@ void checkAudioDevices() {
 
 int main(int argc, char **argv)
 {
-	Pa_Initialize();
-	checkAudioDevices();
-	Pa_StartStream(stream);
-	Pa_Sleep(60000);
-	Pa_StopStream(stream);
-	Pa_Terminate();
+	// Pa_Initialize();
+	// checkAudioDevices();
+	// Pa_StartStream(stream);
+	// Pa_Sleep(60000);
+	// Pa_StopStream(stream);
+	// Pa_Terminate();
 
     double ratio = 1.0;
     double duration = 0.0;
@@ -357,17 +357,8 @@ int main(int argc, char **argv)
     std::string pitchMapFile;
     bool freqOrPitchMapSpecified = false;
 
-    enum {
-        NoTransients,
-        BandLimitedTransients,
-        Transients
-    } transients = Transients;
-
-    enum {
-        CompoundDetector,
-        PercussiveDetector,
-        SoftDetector
-    } detector = CompoundDetector;
+    int transients = 2;/*Transients*/
+    int detector = 0;/*CompoundDetector*/
 
     bool ignoreClipping = false;
 
@@ -449,14 +440,14 @@ int main(int argc, char **argv)
         case 'F': formant = true; break;
         case '0': threading = 1; break;
         case '@': threading = 2; break;
-        case '1': transients = NoTransients; crispchanged = true; break;
+        case '1': transients = 0/*NoTransients*/; crispchanged = true; break;
         case '.': lamination = false; crispchanged = true; break;
         case '>': longwin = true; crispchanged = true; break;
         case '<': shortwin = true; crispchanged = true; break;
-        case '5': detector = PercussiveDetector; crispchanged = true; break;
-        case '6': detector = SoftDetector; crispchanged = true; break;
+        case '5': detector = 1/*PercussiveDetector*/; crispchanged = true; break;
+        case '6': detector = 2/*SoftDetector*/; crispchanged = true; break;
         case '7': together = true; break;
-        case '8': transients = BandLimitedTransients; crispchanged = true; break;
+        case '8': transients = 1/*BandLimitedTransients*/; crispchanged = true; break;
         case '9': smoothing = true; crispchanged = true; break;
         case '%': hqpitch = true; break;
         case 'c': crispness = atoi(optarg); break;
@@ -543,32 +534,14 @@ int main(int argc, char **argv)
         }
     }
 
-    // if (crispness >= 0 && crispchanged) {
-    //     cerr << "WARNING: Both crispness option and transients, lamination or window options" << endl;
-    //     cerr << "         provided -- crispness will override these other options" << endl;
-    // }
+    // TODO: we can start our stretcher here
+    const int defBlockSize = 1024;
+    PitchShifting::Stretcher *sther = new PitchShifting::Stretcher(defBlockSize, debug);
 
-    // if (hqpitch && freqOrPitchMapSpecified) {
-    //     cerr << "WARNING: High-quality pitch mode selected, but frequency or pitch map file is" << endl;
-    //     cerr << "         provided -- pitch mode will be overridden by high-consistency mode" << endl;
-    //     hqpitch = false;
-    // }
-
-    // if (precisiongiven) {
-    //     cerr << "NOTE: The -L/--loose and -P/--precise options are both ignored -- precise" << endl;
-    //     cerr << "      became the default in v1.6 and loose was removed in v3.0" << endl;
-    // }
-    
-    // switch (crispness) {
-    // case -1: crispness = 5; break;
-    // case 0: detector = CompoundDetector; transients = NoTransients; lamination = false; longwin = true; shortwin = false; break;
-    // case 1: detector = SoftDetector; transients = Transients; lamination = false; longwin = true; shortwin = false; break;
-    // case 2: detector = CompoundDetector; transients = NoTransients; lamination = false; longwin = false; shortwin = false; break;
-    // case 3: detector = CompoundDetector; transients = NoTransients; lamination = true; longwin = false; shortwin = false; break;
-    // case 4: detector = CompoundDetector; transients = BandLimitedTransients; lamination = true; longwin = false; shortwin = false; break;
-    // case 5: detector = CompoundDetector; transients = Transients; lamination = true; longwin = false; shortwin = false; break;
-    // case 6: detector = CompoundDetector; transients = Transients; lamination = false; longwin = false; shortwin = true; break;
-    // };
+    int typewin = (shortwin) ? 1 : (longwin) ? 2 : 0/*standard*/;
+    if (crispness != -1) {
+        sther->SetCrispness(crispness, &typewin, &lamination, &transients, &detector);
+    }
 
     if (!quiet) {
         if (finer) {
@@ -593,96 +566,9 @@ int main(int argc, char **argv)
         }
     }
 
-    std::map<size_t, size_t> timeMap;
-    // if (timeMapFile != "") {
-    //     std::ifstream ifile(timeMapFile.c_str());
-    //     if (!ifile.is_open()) {
-    //         cerr << "ERROR: Failed to open time map file \""
-    //              << timeMapFile << "\"" << endl;
-    //         return 1;
-    //     }
-    //     std::string line;
-    //     int lineno = 0;
-    //     while (!ifile.eof()) {
-    //         std::getline(ifile, line);
-    //         while (line.length() > 0 && line[0] == ' ') {
-    //             line = line.substr(1);
-    //         }
-    //         if (line == "") {
-    //             ++lineno;
-    //             continue;
-    //         }
-    //         std::string::size_type i = line.find_first_of(" ");
-    //         if (i == std::string::npos) {
-    //             cerr << "ERROR: Time map file \"" << timeMapFile
-    //                  << "\" is malformed at line " << lineno << endl;
-    //             return 1;
-    //         }
-    //         size_t source = atoi(line.substr(0, i).c_str());
-    //         while (i < line.length() && line[i] == ' ') ++i;
-    //         size_t target = atoi(line.substr(i).c_str());
-    //         timeMap[source] = target;
-    //         if (debug > 0) {
-    //             cerr << "adding mapping from " << source << " to " << target << endl;
-    //         }
-    //         ++lineno;
-    //     }
-    //     ifile.close();
-
-    //     if (!quiet) {
-    //         cerr << "Read " << timeMap.size() << " line(s) from time map file" << endl;
-    //     }
-    // }
-
-    std::map<size_t, double> freqMap;
-
-    // if (freqOrPitchMapSpecified) {
-    //     std::string file = freqMapFile;
-    //     bool convertFromPitch = false;
-    //     if (pitchMapFile != "") {
-    //         file = pitchMapFile;
-    //         convertFromPitch = true;
-    //     }
-    //     std::ifstream ifile(file.c_str());
-    //     if (!ifile.is_open()) {
-    //         cerr << "ERROR: Failed to open map file \"" << file << "\"" << endl;
-    //         return 1;
-    //     }
-    //     std::string line;
-    //     int lineno = 0;
-    //     while (!ifile.eof()) {
-    //         std::getline(ifile, line);
-    //         while (line.length() > 0 && line[0] == ' ') {
-    //             line = line.substr(1);
-    //         }
-    //         if (line == "") {
-    //             ++lineno;
-    //             continue;
-    //         }
-    //         std::string::size_type i = line.find_first_of(" ");
-    //         if (i == std::string::npos) {
-    //             cerr << "ERROR: Map file \"" << file
-    //                  << "\" is malformed at line " << lineno << endl;
-    //             return 1;
-    //         }
-    //         size_t source = atoi(line.substr(0, i).c_str());
-    //         while (i < line.length() && line[i] == ' ') ++i;
-    //         double freq = atof(line.substr(i).c_str());
-    //         if (convertFromPitch) {
-    //             freq = pow(2.0, freq / 12.0);
-    //         }
-    //         freqMap[source] = freq;
-    //         if (debug > 0) {
-    //             cerr << "adding mapping for source frame " << source << " of frequency multiplier " << freq << endl;
-    //         }
-    //         ++lineno;
-    //     }
-    //     ifile.close();
-
-    //     if (!quiet) {
-    //         cerr << "Read " << freqMap.size() << " line(s) from frequency map file" << endl;
-    //     }
-    // }
+    sther->LoadTimeMap(timeMapFile);
+    bool pitchToFreq = freqMapFile.empty();
+    sther->LoadFreqMap((pitchToFreq ? pitchMapFile : freqMapFile), pitchToFreq);
 
     // move input/output file name right aftering getopt resolver
     /*char *fileName = strdup(argv[optind++]);
@@ -701,131 +587,23 @@ int main(int argc, char **argv)
             break;
         }
     }
-    
-    SNDFILE *sndfile;
-    SNDFILE *sndfileOut;
-    SF_INFO sfinfo;
-    SF_INFO sfinfoOut;
-    memset(&sfinfo, 0, sizeof(SF_INFO));
-    memset(&sfinfoOut, 0, sizeof(SF_INFO));
 
-    sndfile = sf_open(fileName, SFM_READ, &sfinfo);
-    if (!sndfile) {
-        cerr << "ERROR: Failed to open input file \"" << fileName << "\": "
-             << sf_strerror(sndfile) << endl;
+    int sampleRate = 0;
+    int channels = 0;
+    int format = 0;
+    int64_t inputFrames = 0;
+    // TODO: so far input file is mandatory
+    bool mandatory = true;
+    mandatory = sther->LoadInputFile(fileName, &sampleRate, &channels, &format, &inputFrames, ratio, duration);  
+    if (mandatory == false) {
         return 1;
     }
-
-    if (sfinfo.samplerate == 0) {
-        cerr << "ERROR: File lacks sample rate in header" << endl;
-        return 1;
-    }
-
-    if (duration != 0.0) {
-        if (sfinfo.frames == 0) {
-            cerr << "ERROR: File lacks frame count in header, cannot use --duration" << endl;
-            return 1;
-        }
-        double induration = double(sfinfo.frames) / double(sfinfo.samplerate);
-        if (induration != 0.0) ratio = duration / induration;
-    }
-    
-    sfinfoOut.channels = sfinfo.channels;
-    sfinfoOut.frames = int(sfinfo.frames * ratio + 0.1);
-    sfinfoOut.samplerate = sfinfo.samplerate;
-    sfinfoOut.sections = sfinfo.sections;
-    sfinfoOut.seekable = sfinfo.seekable;
-
-    sfinfoOut.format = sfinfo.format;
-
-    if (extIn != extOut) {
-        std::string ex = extOut;
-        for (size_t i = 0; i < ex.size(); ++i) {
-            ex[i] = tolower(ex[i]);
-        }
-        int types = 0;
-        (void)sf_command(0, SFC_GET_FORMAT_MAJOR_COUNT, &types, sizeof(int));
-        bool found = false;
-        for (int i = 0; i < types; ++i) {
-            SF_FORMAT_INFO info;
-            info.format = i;
-            if (sf_command(0, SFC_GET_FORMAT_MAJOR, &info, sizeof(info))) {
-                continue;
-            } else {
-                if (ex == std::string(info.extension)) {
-                    sfinfoOut.format = info.format | SF_FORMAT_PCM_24;
-                    found = true;
-                    break;
-                }
-            }
-        }
-        if (!found) {
-            cerr << "NOTE: Unknown output file extension \"" << extOut
-                 << "\", will use same file format as input file" << endl;
-        }
-    }
-    
-    sndfileOut = sf_open(fileNameOut, SFM_WRITE, &sfinfoOut) ;
-    if (!sndfileOut) {
-        cerr << "ERROR: Failed to open output file \"" << fileNameOut << "\" for writing: "
-             << sf_strerror(sndfileOut) << endl;
-        return 1;
-    }
+    // TODO: force align to input file, or use GetFileFormat()
+    sther->SetOutputFile(fileNameOut, sampleRate, 2, format);
 
     RubberBandStretcher::Options options = 0;
-    // if (finer) {
-    //     options = RubberBandStretcher::OptionEngineFiner;
-    // }
-    
-    // if (realtime)    options |= RubberBandStretcher::OptionProcessRealTime;
-    // if (!lamination) options |= RubberBandStretcher::OptionPhaseIndependent;
-    // if (longwin)     options |= RubberBandStretcher::OptionWindowLong;
-    // if (shortwin)    options |= RubberBandStretcher::OptionWindowShort;
-    // if (smoothing)   options |= RubberBandStretcher::OptionSmoothingOn;
-    // if (formant)     options |= RubberBandStretcher::OptionFormantPreserved;
-    // if (together)    options |= RubberBandStretcher::OptionChannelsTogether;
-
-    // if (freqOrPitchMapSpecified) {
-    //     options |= RubberBandStretcher::OptionPitchHighConsistency;
-    // } else if (hqpitch) {
-    //     options |= RubberBandStretcher::OptionPitchHighQuality;
-    // }
-
-    // switch (threading) {
-    // case 0:
-    //     options |= RubberBandStretcher::OptionThreadingAuto;
-    //     break;
-    // case 1:
-    //     options |= RubberBandStretcher::OptionThreadingNever;
-    //     break;
-    // case 2:
-    //     options |= RubberBandStretcher::OptionThreadingAlways;
-    //     break;
-    // }
-
-    // switch (transients) {
-    // case NoTransients:
-    //     options |= RubberBandStretcher::OptionTransientsSmooth;
-    //     break;
-    // case BandLimitedTransients:
-    //     options |= RubberBandStretcher::OptionTransientsMixed;
-    //     break;
-    // case Transients:
-    //     options |= RubberBandStretcher::OptionTransientsCrisp;
-    //     break;
-    // }
-
-    // switch (detector) {
-    // case CompoundDetector:
-    //     options |= RubberBandStretcher::OptionDetectorCompound;
-    //     break;
-    // case PercussiveDetector:
-    //     options |= RubberBandStretcher::OptionDetectorPercussive;
-    //     break;
-    // case SoftDetector:
-    //     options |= RubberBandStretcher::OptionDetectorSoft;
-    //     break;
-    // }
+    options = sther->SetOptions(finer, realtime, typewin, smoothing, formant,
+        together, hqpitch, lamination, threading, transients, detector);
 
     if (pitchshift != 0.0) {
         frequencyshift *= pow(2.0, pitchshift / 12.0);
@@ -858,22 +636,10 @@ int main(int argc, char **argv)
 #endif
     timeval tv;
     (void)gettimeofday(&tv, 0);
-    
-    RubberBandStretcher::setDefaultDebugLevel(debug);
 
     size_t countIn = 0, countOut = 0;
 
-    float gain = 1.f;
     bool successful = false;
-    
-    const size_t channels = sfinfo.channels;
-    const int bs = 1024;
-    
-    float **cbuf = new float *[channels];
-    for (size_t c = 0; c < channels; ++c) {
-        cbuf[c] = new float[bs];
-    }
-    float *ibuf = new float[channels * bs];
 
     int thisBlockSize;
 
@@ -881,68 +647,22 @@ int main(int argc, char **argv)
                           // gain, if clipping occurs
         successful = true;
 
-        RubberBandStretcher ts(sfinfo.samplerate, channels, options,
-                               ratio, frequencyshift);
-        ts.setExpectedInputDuration(sfinfo.frames);
-        ts.setMaxProcessSize(bs);
-        ts.setFormantScale(formantScale);
+        sther->Create(sampleRate, channels, options, ratio, frequencyshift);
+        
+        sther->ExpectedInputDuration(inputFrames); // estimate from input file
+        sther->MaxProcessSize(defBlockSize);
+        sther->FormantScale(formantScale);
+        sther->SetIgnoreClipping(ignoreClipping);
+
+        if (!realtime) {
+            sther->StudyInputSound();
+        }
 
         int frame = 0;
         int percent = 0;
 
-        if (!realtime) {
+        sther->SetKeyFrameMap();
 
-            if (!quiet) {
-                cerr << "Pass 1: Studying..." << endl;
-            }
-
-            bool final = false;
-            
-            while (!final) {
-
-                int count = -1;
-                if ((count = sf_readf_float(sndfile, ibuf, bs)) < 0) break;
-        
-                for (size_t c = 0; c < channels; ++c) {
-                    for (int i = 0; i < count; ++i) {
-                        cbuf[c][i] = ibuf[i * channels + c];
-                    }
-                }
-
-                final = (frame + bs >= sfinfo.frames);
-                if (count == 0) {
-                    final = true;
-                }
-
-                ts.study(cbuf, count, final);
-
-                int p = int((double(frame) * 100.0) / sfinfo.frames);
-                if (p > percent || frame == 0) {
-                    percent = p;
-                    if (!quiet) {
-                        cerr << "\r" << percent << "% ";
-                    }
-                }
-
-                frame += bs;
-            }
-
-            if (!quiet) {
-                cerr << "\rCalculating profile..." << endl;
-            }
-
-            sf_seek(sndfile, 0, SEEK_SET);
-        }
-
-        frame = 0;
-        percent = 0;
-
-        if (!timeMap.empty()) {
-            ts.setKeyFrameMap(timeMap);
-        }
-
-        std::map<size_t, double>::const_iterator freqMapItr = freqMap.begin();
-    
         countIn = 0;
         countOut = 0;
         bool clipping = false;
@@ -950,214 +670,52 @@ int main(int argc, char **argv)
         // The stretcher only pads the start in offline mode; to avoid
         // a fade in at the start, we pad it manually in RT mode. Both
         // of these functions are defined to return zero in offline mode
-        int toDrop = ts.getStartDelay();
-        if (realtime) {
-            int toPad = ts.getPreferredStartPad();
-            if (debug > 0) {
-                cerr << "padding start with " << toPad
-                     << " samples in RT mode, will drop " << toDrop
-                     << " at output" << endl;
-            }
-            if (toPad > 0) {
-                for (size_t c = 0; c < channels; ++c) {
-                    for (int i = 0; i < bs; ++i) {
-                        cbuf[c][i] = 0.f;
-                    }
-                }
-                while (toPad > 0) {
-                    int p = toPad;
-                    if (p > bs) p = bs;
-                    ts.process(cbuf, p, false);
-                    toPad -= p;
-                }
-            }
-        }                
+        int toDrop = 0;
+        sther->ProcessStartPad(&toDrop);
 
-        bool final = false;
+        bool reading = true;
         //TODO: check here for realtime via portaudio
-        while (!final) {
+        while (reading) {
 
-            thisBlockSize = bs;
+            thisBlockSize = defBlockSize;
+            sther->ApplyFreqMap(countIn, &thisBlockSize);
 
-            while (freqMapItr != freqMap.end()) {
-                size_t nextFreqFrame = freqMapItr->first;
-                if (nextFreqFrame <= countIn) {
-                    double s = frequencyshift * freqMapItr->second;
-                    if (debug > 0) {
-                        cerr << "at frame " << countIn
-                             << " (requested at " << freqMapItr->first
-                             << " [NOT] plus latency " << ts.getLatency()
-                             << ") updating frequency ratio to " << s << endl;
-                    }
-                    ts.setPitchScale(s);
-                    ++freqMapItr;
-                } else {
-                    if (nextFreqFrame < countIn + thisBlockSize) {
-                        thisBlockSize = nextFreqFrame - countIn;
-                    }
-                    break;
-                }
-            }
-			//TODO: change ibuf reading
-            int count = -1;
-            if ((count = sf_readf_float(sndfile, ibuf, thisBlockSize)) < 0) {
-                break;
-            }
-        
-            countIn += count;
-
-            for (size_t c = 0; c < channels; ++c) {
-                for (int i = 0; i < count; ++i) {
-                    cbuf[c][i] = ibuf[i * channels + c];
-                }
-            }
-
-            final = (frame + thisBlockSize >= sfinfo.frames);
-
-            if (count == 0) {
-                if (debug > 1) {
-                    cerr << "at frame " << frame << " of " << sfinfo.frames << ", read count = " << count << ": marking final as true" << endl;
-                }
-                final = true;
-            }
-            
-            if (debug > 2) {
-                cerr << "count = " << count << ", bs = " << thisBlockSize << ", frame = " << frame << ", frames = " << sfinfo.frames << ", final = " << final << endl;
-            }
-
-            ts.process(cbuf, count, final);
-
-            int avail;
-            while ((avail = ts.available()) > 0) {
-                if (debug > 1) {
-                    cerr << "available = " << avail << endl;
-                }
-
-                thisBlockSize = avail;
-                if (thisBlockSize > bs) {
-                    thisBlockSize = bs;
-                }
-                
-                if (toDrop > 0) {
-                    int dropHere = toDrop;
-                    if (dropHere > thisBlockSize) {
-                        dropHere = thisBlockSize;
-                    }
-                    if (debug > 1) {
-                        cerr << "toDrop = " << toDrop << ", dropping "
-                             << dropHere << " of " << avail << endl;
-                    }
-                    ts.retrieve(cbuf, dropHere);
-                    toDrop -= dropHere;
-                    avail -= dropHere;
-                    continue;
-                }
-                
-                if (debug > 2) {
-                    cerr << "retrieving block of " << thisBlockSize << endl;
-                }
-                ts.retrieve(cbuf, thisBlockSize);
-                
-                if (realtime && final) {
-                    // (in offline mode the stretcher handles this itself)
-                    size_t ideal = size_t(countIn * ratio);
-                    if (debug > 2) {
-                        cerr << "at end, ideal = " << ideal
-                             << ", countOut = " << countOut
-                             << ", thisBlockSize = " << thisBlockSize << endl;
-                    }
-                    if (countOut + thisBlockSize > ideal) {
-                        thisBlockSize = ideal - countOut;
-                        if (debug > 1) {
-                            cerr << "truncated final block to " << thisBlockSize
-                                 << endl;
-                        }
-                    }
-                }
-                
-                countOut += thisBlockSize;
-                
-                for (size_t c = 0; c < channels; ++c) {
-                    for (int i = 0; i < thisBlockSize; ++i) {
-                        float value = gain * cbuf[c][i];
-                        if (ignoreClipping) { // i.e. just clamp, don't bail out
-                            if (value > 1.f) value = 1.f;
-                            if (value < -1.f) value = -1.f;
-                        } else {
-                            if (value >= 1.f || value < -1.f) {
-                                clipping = true;
-                                gain = (0.999f / fabsf(cbuf[c][i]));
-                            }
-                        }
-                        ibuf[i * channels + c] = value;
-                    }
-                }
-                sf_writef_float(sndfileOut, ibuf, thisBlockSize);
-            }
-
-            if (clipping) {
-                const float mingain = 0.75f;
-                if (gain < mingain) {
-                    cerr << "NOTE: Clipping detected at output sample "
-                         << countOut << ", but not reducing gain as it would "
-                         << "mean dropping below minimum " << mingain << endl;
-                    gain = mingain;
-                    ignoreClipping = true;
-                } else {
-                    if (!quiet) {
-                        cerr << "NOTE: Clipping detected at output sample "
-                             << countOut << ", restarting with "
-                             << "reduced gain of " << gain
-                             << " (supply --ignore-clipping to avoid this)"
-                             << endl;
-                    }
-                }
-                successful = false;
-                break;
-            }
+            // TODO: given block size parameter if frequency map is enabled
+			// TODO: change input function to device instead of file
+            // TODO: may check result if clipping occurred to successful variable
+            successful = sther->ProcessInputSound(&toDrop, &frame, &countIn, &countOut);
+            //if (!successful) break;
             
             if (frame == 0 && !realtime && !quiet) {
                 cerr << "Pass 2: Processing..." << endl;
             }
 
-            int p = int((double(frame) * 100.0) / sfinfo.frames);
+            int p = int((double(frame) * 100.0) / inputFrames);
             if (p > percent || frame == 0) {
                 percent = p;
                 if (!quiet) {
                     cerr << "\r" << percent << "% ";
                 }
             }
-
-            frame += count;
-        }
+            // NOTE: increased in call function
+            //frame += count;
+            
+            // exit while loop if all input frames are processed
+            if (frame >= inputFrames) {
+                // TODO: original design is frame + blockSize >= total input frames
+                reading = false;
+            }
+        } // while (reading)
 
         if (!successful) {
-            if (sf_seek(sndfile, 0, SEEK_SET) < 0) {
-                if (debug > 0) {
-                    cerr << "input file is not seekable: reopening" << endl;
-                }
-                sf_close(sndfile);
-                sndfile = sf_open(fileName, SFM_READ, &sfinfo);
-                if (!sndfile) {
-                    cerr << "ERROR: Failed to reopen input file \""
-                         << fileName << "\": " << sf_strerror(sndfile) << endl;
-                    return 1;
-                }
+            cerr << "WARNING: found clipping during process, decrease gain and process from begin again.." << endl;
+            cerr << "         but I want to ignore this for realtime process.." << endl;
+            if (!realtime) {
+                // TODO: new functions to reopen or seek 0 to input/output files for
+                //       re-entering while (!successful) loop
+                //continue;
             }
-            if (sf_seek(sndfileOut, 0, SEEK_SET) < 0) {
-                if (debug > 0) {
-                    cerr << "output file is not seekable: reopening" << endl;
-                }
-                sf_close(sndfileOut);
-                sndfileOut = sf_open(fileNameOut, SFM_WRITE, &sfinfoOut);
-                if (!sndfileOut) {
-                    cerr << "ERROR: Failed to reopen output file \""
-                         << fileNameOut << "\": "
-                         << sf_strerror(sndfileOut) << endl;
-                    return 1;
-                }
-            }
-            continue;
+            successful = true; // ignore clipping
         }
     
         if (!quiet) {
@@ -1166,52 +724,17 @@ int main(int argc, char **argv)
 
         // NOTE: get availble processed blocks from modified gain and clipping
         //       after nothing can read from input raised final=true until successful=true
-        int avail;
-        while ((avail = ts.available()) >= 0) {
-            if (debug > 1) {
-                cerr << "(completing) available = " << avail << endl;
-            }
+        sther->RetrieveAvailableData(&countOut);
 
-            if (avail == 0) {
-                if (realtime ||
-                    (options & RubberBandStretcher::OptionThreadingNever)) {
-                    break;
-                } else {
-                    usleep(10000);
-                }
-            }
-            
-            thisBlockSize = avail;
-            if (thisBlockSize > bs) {
-                thisBlockSize = bs;
-            }
-                
-            ts.retrieve(cbuf, thisBlockSize);
+    } // while (successful)
 
-            countOut += thisBlockSize;
-                
-            for (size_t c = 0; c < channels; ++c) {
-                for (int i = 0; i < thisBlockSize; ++i) {
-                    float value = gain * cbuf[c][i];
-                    if (value > 1.f) value = 1.f;
-                    if (value < -1.f) value = -1.f;
-                    ibuf[i * channels + c] = value;
-                }
-            }
-            //TODO: change ibuf output
-            sf_writef_float(sndfileOut, ibuf, thisBlockSize);
-        }
-    }
+    // delete[] ibuf;
+    // for (size_t c = 0; c < channels; ++c) {
+    //     delete[] cbuf[c];
+    // }
+    // delete[] cbuf;
 
-    delete[] ibuf;
-
-    for (size_t c = 0; c < channels; ++c) {
-        delete[] cbuf[c];
-    }
-    delete[] cbuf;
-
-    sf_close(sndfile);
-    sf_close(sndfileOut);
+    sther->CloseFiles();
 
     free(fileName);
     free(fileNameOut);
