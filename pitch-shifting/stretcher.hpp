@@ -74,80 +74,75 @@ public:
 protected:
     virtual ~Stretcher();
 private:
+    int debug;
+    bool quiet;
+
     RubberBandStretcher *pts;
-    RubberBandStretcher::Options options = 0;
+    RubberBandStretcher::Options options;
     
-    // estimate frame ratio from input sound for output
-    double ratio = 1.0;
-    // estimate output sound file duration
-    double duration = 0.0;
-    // semitones
-    double pitchshift = 0.0;
-    // percentage
-    double frequencyshift = 1.0;
-    int debug = 0;
-    bool realtime = false;
-    // precise became the default in v1.6 and loose was removed in v3.0
-    bool precisiongiven = false;
-    int threading = 0;
-    bool lamination = true;
-    bool longwin = false;
-    bool shortwin = false;
-    bool smoothing = false;
-    bool hqpitch = false;
-    bool formant = false;
-    bool together = false;
-    bool crispchanged = false;
-    int crispness = -1;
-    bool faster = false;
-    bool finer = false;
-    bool help = false;
-    bool fullHelp = false;
-    bool version = false;
-    bool quiet = false;
+    // estimate frame ratio from input sound for output, default 1.0
+    double ratio;
+    // estimate output sound file duration, default unset(0.0)
+    double duration;
+    // percentage, default 1.0
+    double frequencyshift;
+    bool realtime;
+    int threading;
+    bool lamination;
+    bool longwin;
+    bool shortwin;
+    bool smoothing;
+    bool hqpitch;
+    bool formant;
+    bool together;
+    // default -1
+    int crispness;
+    bool faster;
+    bool finer;
 
     std::map<size_t, size_t> timeMap;
     std::map<size_t, double> freqMap;
-    std::map<size_t, double>::const_iterator freqMapItr = freqMap.begin();
+    std::map<size_t, double>::const_iterator freqMapItr;
 
+    // default Transients(2)
     enum _t_transients {
         NoTransients,
         BandLimitedTransients,
         Transients
-    } transients = Transients;
+    } transients;
 
+    // default Compound(0)
     enum _t_detector {
         CompoundDetector,
         PercussiveDetector,
         SoftDetector
-    } detector = CompoundDetector;
+    } detector;
 
-    bool ignoreClipping = false;
+    bool ignoreClipping;
 
     // sound file for input wav
-    SNDFILE *sndfileIn = nullptr;
+    SNDFILE *sndfileIn;
     // input sound info
-    SF_INFO sfinfoIn = { 0 };
+    SF_INFO sfinfoIn;
     // sound file for output wav
-    SNDFILE *sndfileOut = nullptr;
+    SNDFILE *sndfileOut;
     // output sound info
-    SF_INFO sfinfoOut = { 0 };
-    // output file extension to estimate output sound format
+    SF_INFO sfinfoOut;
 
-    int inputChannels = 0;
-    int outputChannels = 0;
-    int defBlockSize = 1024;
+    int inputChannels;
+    int outputChannels;
+    const int defBlockSize = 1024;
     // buffer reallocation depends on channels and block size, reallocation via input/output changes
-    bool reallocInBuffer = false;
-    bool reallocOutBuffer = false;
-    // temperary flag for cbuf dispose
-    int cbufLen = 0;
+    bool reallocInBuffer;
+    bool reallocOutBuffer;
+    // temperary flag for cbuf dispose, align to inputChannels
+    int cbufLen;
     // buffer for rubberband calculation
-    float **cbuf = nullptr;
+    float **cbuf;
     // buffer for input audio frame
-    float *ibuf = nullptr;
+    float *ibuf;
     // buffer for output audio frame
-    float *obuf = nullptr;
+    float *obuf;
 };
 
 } // namespace PitchShifting

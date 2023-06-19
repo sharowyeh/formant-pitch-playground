@@ -15,9 +15,44 @@ Stretcher::Stretcher(int defBlockSize, int debugLevel) {
     debug = debugLevel;
     quiet = false; // TODO: or depends on debug level?
     RubberBand::RubberBandStretcher::setDefaultDebugLevel(debugLevel);
-    pts = nullptr;
-    // TODO: initialize private variables here, since so many funcs assoicate with them
-    Stretcher::defBlockSize = defBlockSize;
+    
+    Stretcher::pts = nullptr;
+    Stretcher::options = 0;
+    // use my own default
+    ratio = 1.0;
+    duration = 0.0;
+    frequencyshift = 1.0;
+    realtime = true;
+    threading = 0;
+    lamination = true;
+    longwin = false;
+    shortwin = false;
+    smoothing = true;
+    hqpitch = false;
+    formant = true;
+    together = false;
+    crispness = -1;
+    faster = false;
+    finer = true;
+
+    freqMapItr = freqMap.begin();
+    transients = Transients;
+    detector = CompoundDetector;
+
+    ignoreClipping = true;
+
+    sndfileIn = nullptr;
+    sndfileOut = nullptr;
+
+    inputChannels = 0;
+    outputChannels = 0;
+    defBlockSize = 1024;
+    reallocInBuffer = false;
+    reallocOutBuffer = false;
+    cbufLen = 0;
+    cbuf = nullptr;
+    ibuf = nullptr;
+    obuf = nullptr;
 }
 
 Stretcher::~Stretcher() {
