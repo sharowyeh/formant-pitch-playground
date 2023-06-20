@@ -57,17 +57,20 @@ public:
     // study loaded input file for stretcher (to pitch analyzing?), ignore in realtime mode 
     void StudyInputSound(/*int blockSize*/);
     // in realtime mode, process padding at begin to avoid fade in and get drop delay for output buffer
-    void ProcessStartPad(int *pToDrop);
+    int ProcessStartPad();
+    // set dropping sample count for output which realtime mode has padding at begin
+    void SetDropFrames(int frames) { dropFrames = frames; };
     // adjust rubberband pitch scale per process block, countIn will align to freqMap key and increase freqMap iterator
     void ApplyFreqMap(size_t countIn,/* int blockSize,*/ int *pAdjustedBlockSize = nullptr);
     
+    // set output gain for clipping manipulation, default 1.f
+    void SetOutputGain(float val) { gain = val; };
     // process given block of sound file, NOTE: high relavent to sndfile seeking position
-    // TODO: we may need change return parameter to class scoped variable instead of caller?
-    // pFrame represent current process input frame position to ensure is final for rubberband process() call
-    bool ProcessInputSound(/*int blockSize, */int *pToDrop, int *pFrame,
-        size_t *pCountIn, size_t *pCountOut, float gain = 1.f);
+    // return input frames have done for reading
+    // TODO: w/o file input, we may not able to check isFinal or not for rubberband stretcher
+    bool ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn);
     // only care about available data on rubberband stretcher
-    bool RetrieveAvailableData(size_t *pCountOut, float gain = 1.f);
+    bool RetrieveAvailableData(size_t *pCountOut, bool isfinal = false);
 
     // helper function if using input/output sndfiles
     void CloseFiles();
@@ -118,8 +121,6 @@ private:
         SoftDetector
     } detector;
 
-    bool ignoreClipping;
-
     // sound file for input wav
     SNDFILE *sndfileIn;
     // input sound info
@@ -143,6 +144,13 @@ private:
     float *ibuf;
     // buffer for output audio frame
     float *obuf;
+
+    int dropFrames;
+    bool ignoreClipping;
+    // decrease gain to avoid clipping for output process, default 1.f
+    float gain;
+    // below minimal gain will mean dropping
+    const float minGain = 0.75f;
 };
 
 } // namespace PitchShifting

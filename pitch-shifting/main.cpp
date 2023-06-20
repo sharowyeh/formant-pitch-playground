@@ -330,7 +330,7 @@ int main(int argc, char **argv)
     double duration = 0.0;
     double pitchshift = 0.0;
     double frequencyshift = 1.0;
-    int debug = 0;
+    int debug = 3;
     bool realtime = false;
     bool precisiongiven = false;
     int threading = 0;
@@ -671,7 +671,8 @@ int main(int argc, char **argv)
         // a fade in at the start, we pad it manually in RT mode. Both
         // of these functions are defined to return zero in offline mode
         int toDrop = 0;
-        sther->ProcessStartPad(&toDrop);
+        toDrop = sther->ProcessStartPad();
+        sther->SetDropFrames(toDrop);
 
         bool reading = true;
         //TODO: check here for realtime via portaudio
@@ -682,8 +683,10 @@ int main(int argc, char **argv)
 
             // TODO: given block size parameter if frequency map is enabled
 			// TODO: change input function to device instead of file
+            bool isFinal = sther->ProcessInputSound(&frame, &countIn);
+
             // TODO: may check result if clipping occurred to successful variable
-            successful = sther->ProcessInputSound(&toDrop, &frame, &countIn, &countOut);
+            successful = sther->RetrieveAvailableData(&countOut, isFinal);
             //if (!successful) break;
             
             if (frame == 0 && !realtime && !quiet) {

@@ -13,7 +13,9 @@ namespace PitchShifting {
 
 Stretcher::Stretcher(int defBlockSize, int debugLevel) {
     debug = debugLevel;
-    quiet = false; // TODO: or depends on debug level?
+    quiet = (debugLevel < 2);
+    cerr << "Constructor default block size:" << defBlockSize << " debug:" << debugLevel << " quiet:" << quiet << endl;
+
     RubberBand::RubberBandStretcher::setDefaultDebugLevel(debugLevel);
     
     Stretcher::pts = nullptr;
@@ -39,8 +41,6 @@ Stretcher::Stretcher(int defBlockSize, int debugLevel) {
     transients = Transients;
     detector = CompoundDetector;
 
-    ignoreClipping = true;
-
     sndfileIn = nullptr;
     sndfileOut = nullptr;
 
@@ -53,6 +53,10 @@ Stretcher::Stretcher(int defBlockSize, int debugLevel) {
     cbuf = nullptr;
     ibuf = nullptr;
     obuf = nullptr;
+
+    dropFrames = 0;
+    ignoreClipping = true;
+    gain = 1.f;
 }
 
 Stretcher::~Stretcher() {
@@ -550,12 +554,11 @@ Stretcher::StudyInputSound(/*int blockSize*/) {
     sf_seek(sndfileIn, 0, SEEK_SET);
 }
 
-void
-Stretcher::ProcessStartPad(int *pToDrop) {
-    *pToDrop = 0;
-    if (!pts) return;
-    *pToDrop = pts->getStartDelay();
-    if (!realtime) return;
+int
+Stretcher::ProcessStartPad() {
+    if (!pts) return 0;
+    int toDrop = pts->getStartDelay();
+    if (!realtime) return toDrop;
 
     PrepareBuffer();
     int blockSize = Stretcher::defBlockSize; // only for original code design
@@ -563,7 +566,7 @@ Stretcher::ProcessStartPad(int *pToDrop) {
     int toPad = pts->getPreferredStartPad();
     if (debug > 0) {
         cerr << "padding start with " << toPad
-            << " samples in RT mode, will drop " << *pToDrop
+            << " samples in RT mode, will drop " << toDrop
             << " at output" << endl;
     }
     if (toPad > 0) {
@@ -579,6 +582,8 @@ Stretcher::ProcessStartPad(int *pToDrop) {
             toPad -= p;
         }
     }
+
+    return toDrop;
 }
 
 void
@@ -614,8 +619,7 @@ Stretcher::ApplyFreqMap(size_t countIn,/* int blockSize,*/ int *pAdjustedBlockSi
 }
 
 bool
-Stretcher::ProcessInputSound(/*int blockSize, */int *pToDrop, int *pFrame,
-    size_t *pCountIn, size_t *pCountOut, float gain) {
+Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
     // simply check for function refactoring
     if (!pts) return false;
     PrepareBuffer();
@@ -626,7 +630,7 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pToDrop, int *pFrame,
     if ((count = sf_readf_float(sndfileIn, ibuf, blockSize)) < 0) {
         return false;
     }
-
+    // NOTE: countIn will be the same with total frames from input
     *pCountIn += count;
 
     for (size_t c = 0; c < inputChannels; ++c) {
@@ -646,49 +650,79 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pToDrop, int *pFrame,
     }
     
     if (debug > 2) {
-        cerr << "count = " << count << ", bs = " << blockSize << ", frame = " << *pFrame << ", frames = " << sfinfoIn.frames << ", final = " << isFinal << endl;
+        cerr << "in = " << *pCountIn << ", count = " << count << ", bs = " << blockSize << ", frame = " << *pFrame << ", frames = " << sfinfoIn.frames << ", final = " << isFinal << endl;
     }
 
     pts->process(cbuf, count, isFinal);
+    // increase frame number to caller
+    *pFrame += count;
+    // DEBUG: only process input, return isFinal as result
+    return isFinal;
+}
 
+bool
+Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
+    // partial simillar with seconds section of ProcessInputSound 
+    // but just get rest of availble blocks
+    
+    // for original code design, also be reused for retrieve data behavior
+    int blockSize = Stretcher::defBlockSize;
     int avail;
     bool clipping = false;
-    while ((avail = pts->available()) > 0) {
+    while ((avail = pts->available()) >= 0) {
         if (debug > 1) {
+            if (isFinal) {
+                cerr << "(completing) ";
+            }
             cerr << "available = " << avail << endl;
         }
-        // reuse blockSize variable to check output frame, and limited in constraint 1024
+
+        // original while loop exit
+        if (avail == 0 && !isFinal) {
+            break;
+        }
+        if (avail == 0 && isFinal) {
+            if (realtime ||
+                (options & RubberBandStretcher::OptionThreadingNever)) {
+                break;
+            } else {
+                usleep(10000);
+            }
+        }
+        
         blockSize = avail;
         if (blockSize > Stretcher::defBlockSize) {
             blockSize = Stretcher::defBlockSize;
         }
-        
-        if (*pToDrop > 0) {
-            int dropHere = *pToDrop;
+
+        // process dropping frames (for realtime mode has padding at begin)
+        if (dropFrames > 0) {
+            int dropHere = dropFrames;
             // dropping frame can only less than adjusted block size(same with avail but less than 1024)
             if (dropHere > blockSize) {
                 dropHere = blockSize;
             }
             if (debug > 1) {
-                cerr << "toDrop = " << *pToDrop << ", dropping "
+                cerr << "toDrop = " << dropFrames << ", dropping "
                         << dropHere << " of " << avail << endl;
             }
             pts->retrieve(cbuf, dropHere);
-            *pToDrop -= dropHere;
+            dropFrames -= dropHere;
             avail -= dropHere;
             // to next available processed block
             continue;
         }
-        
+
         if (debug > 2) {
-            cerr << "retrieving block of " << blockSize << endl;
+            cerr << "retrieving block of " << blockSize << ", out = " << *pCountOut << endl;
         }
         pts->retrieve(cbuf, blockSize);
-        
-        // NOTE: this realtime setting is used for input sound file(which has final flag from reading frame)
-        if (realtime && isFinal) {
+
+        // process frames count alignment between input and output file in realtime mode,
+        // NOTE: but it may not necessary for my real purpose w/o input and output files
+        if (realtime && isFinal && sndfileIn) {
             // (in offline mode the stretcher handles this itself)
-            size_t ideal = size_t(*pCountIn * ratio);
+            size_t ideal = size_t(sfinfoIn.frames * ratio);
             if (debug > 2) {
                 cerr << "at end, ideal = " << ideal
                     << ", countOut = " << *pCountOut
@@ -702,7 +736,7 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pToDrop, int *pFrame,
                 }
             }
         }
-        
+
         *pCountOut += blockSize;
 
         // TODO: should be merge/separate channels instead of this dirty way
@@ -726,19 +760,17 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pToDrop, int *pFrame,
             }
         }
         
-        // TODO: only if output sndfile assigned
         if (sndfileOut) {
             sf_writef_float(sndfileOut, obuf, blockSize);
         }
     } // while (avail)
 
     if (clipping) {
-        const float mingain = 0.75f;
-        if (gain < mingain) {
+        if (gain < minGain) {
             cerr << "NOTE: Clipping detected at output sample "
                     << *pCountOut << ", but not reducing gain as it would "
-                    << "mean dropping below minimum " << mingain << endl;
-            gain = mingain;
+                    << "mean dropping below minimum " << minGain << endl;
+            gain = minGain;
             ignoreClipping = true;
         } else {
             if (!quiet) {
@@ -749,67 +781,10 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pToDrop, int *pFrame,
                         << endl;
             }
         }
-        //TODO: if clipping detected, need redo process from beginning with new gain
-        // successful = false;
-        // break;
+        // if clipping detected, need redo process from begin with modified gain
         return false;
     } // if (clipping)
-
-    // increase frame number to caller
-    *pFrame += count;
-
-    return true;
-}
-
-bool
-Stretcher::RetrieveAvailableData(size_t *pCountOut, float gain) {
-    // partial simillar with seconds section of ProcessInputSound 
-    // but just get rest of availble blocks
     
-    // for original code design, also be reused for retrieve data behavior
-    int blockSize = Stretcher::defBlockSize;
-    int avail;
-    while ((avail = pts->available()) >= 0) {
-        if (debug > 1) {
-            cerr << "(completing) available = " << avail << endl;
-        }
-
-        if (avail == 0) {
-            if (realtime ||
-                (options & RubberBandStretcher::OptionThreadingNever)) {
-                break;
-            } else {
-                usleep(10000);
-            }
-        }
-        
-        blockSize = avail;
-        if (blockSize > Stretcher::defBlockSize) {
-            blockSize = Stretcher::defBlockSize;
-        }
-
-        pts->retrieve(cbuf, blockSize);
-
-        *pCountOut += blockSize;
-
-        // TODO: should be merge/separate channels instead of this dirty way
-        int channels = std::max(inputChannels, outputChannels);
-        for (size_t c = 0; c < channels; ++c) {
-            size_t cin = (c < inputChannels) ? c : inputChannels - 1;
-            size_t cout = (c < outputChannels) ? c : outputChannels - 1;
-            for (int i = 0; i < blockSize; ++i) {
-                float value = gain * cbuf[cin][i];
-                if (value > 1.f) value = 1.f;
-                if (value < -1.f) value = -1.f;
-                obuf[i * channels + cout] = value;
-            }
-        }
-        
-        if (sndfileOut) {
-            sf_writef_float(sndfileOut, obuf, blockSize);
-        }
-    }
-
     return true;
 }
 
