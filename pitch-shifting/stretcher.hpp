@@ -10,6 +10,8 @@
 
 #include <fstream>
 
+#include <portaudio.h>
+
 using std::cerr;
 using std::endl;
 using RubberBand::RubberBandStretcher;
@@ -19,6 +21,7 @@ namespace PitchShifting {
 class Stretcher {
 public:
     Stretcher(int defBlockSize = 1024, int dbgLevel = 1);
+    virtual ~Stretcher();
 
     int SetOptions(bool finer, bool realtime, int typewin, bool smoothing, bool formant,
         bool together, bool hipitch, bool lamination,
@@ -75,7 +78,8 @@ public:
     // helper function if using input/output sndfiles
     void CloseFiles();
 protected:
-    virtual ~Stretcher();
+    // make sure deconstruction will be done
+    void Dispose();
 private:
     int debug;
     bool quiet;

@@ -771,6 +771,8 @@ int main(int argc, char **argv)
 
     RubberBand::Profiler::dump();
     
+    delete sther;
+
     return 0;
 }
 

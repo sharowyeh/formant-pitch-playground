@@ -12,6 +12,9 @@ static void usleep(unsigned long usec) {
 namespace PitchShifting {
 
 Stretcher::Stretcher(int defBlockSize, int debugLevel) {
+    // for port audio initialization
+    Pa_Initialize();
+
     debug = debugLevel;
     quiet = (debugLevel < 2);
     cerr << "Constructor default block size:" << defBlockSize << " debug:" << debugLevel << " quiet:" << quiet << endl;
@@ -60,7 +63,31 @@ Stretcher::Stretcher(int defBlockSize, int debugLevel) {
 }
 
 Stretcher::~Stretcher() {
-    
+    cerr << "Stretcher dector..." << endl;
+    // TODO: cleanup something 
+
+    Dispose();
+}
+
+void
+Stretcher::Dispose() {
+    if (ibuf) {
+        delete[] ibuf;
+        ibuf = nullptr;
+    }
+    if (cbuf) {
+        for (int c = 0; c < cbufLen; c++) {
+            delete[] cbuf[c];
+        }
+        delete[] cbuf;
+        cbuf = nullptr;
+    }
+    if (obuf) {
+        delete[] obuf;
+        obuf = nullptr;
+    }
+
+    Pa_Terminate();
 }
 
 int
@@ -792,9 +819,11 @@ void
 Stretcher::CloseFiles() {
     if (sndfileIn) {
         sf_close(sndfileIn);
+        sndfileIn = nullptr;
     }
     if (sndfileOut) {
         sf_close(sndfileOut);
+        sndfileOut = nullptr;
     }
 }
 
