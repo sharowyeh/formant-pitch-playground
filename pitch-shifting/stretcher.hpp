@@ -11,6 +11,9 @@
 #include <fstream>
 
 #include <portaudio.h>
+// for synchronization buffer between rubberband stretcher and portaudio callback
+#include <mutex>
+#include <condition_variable>
 
 using std::cerr;
 using std::endl;
@@ -77,9 +80,28 @@ public:
 
     // helper function if using input/output sndfiles
     void CloseFiles();
+
+    // list audio devices via portaudio
+    void ListAudioDevices();
+    PaStreamCallback *debugCallback;
+
+    PaStream *outStream;
+    // TODO: design for input or output device audio stream
+    void SetOutputStream(int index);
+    void StartOutputStream() { if(outStream) Pa_StartStream(outStream); };
+    void StopOutputStream() { if(outStream) Pa_StopStream(outStream); };
+
 protected:
     // make sure deconstruction will be done
-    void Dispose();
+    void dispose();
+
+    static int outputAudioCallback(
+        const void* inBuffer, void* outBuffer,
+        unsigned long frames,
+        const PaStreamCallbackTimeInfo* timeInfo,
+        PaStreamCallbackFlags flags,
+        void *data);
+
 private:
     int debug;
     bool quiet;

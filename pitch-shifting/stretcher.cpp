@@ -14,6 +14,7 @@ namespace PitchShifting {
 Stretcher::Stretcher(int defBlockSize, int debugLevel) {
     // for port audio initialization
     Pa_Initialize();
+    outStream = nullptr;
 
     debug = debugLevel;
     quiet = (debugLevel < 2);
@@ -66,11 +67,11 @@ Stretcher::~Stretcher() {
     cerr << "Stretcher dector..." << endl;
     // TODO: cleanup something 
 
-    Dispose();
+    dispose();
 }
 
 void
-Stretcher::Dispose() {
+Stretcher::dispose() {
     if (ibuf) {
         delete[] ibuf;
         ibuf = nullptr;
@@ -782,7 +783,7 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
                         gain = (0.999f / fabsf(cbuf[cin][i]));
                     }
                 }
-
+                // TODO: do something to sync with output stream
                 obuf[i * channels + cout] = value;
             }
         }
@@ -825,6 +826,81 @@ Stretcher::CloseFiles() {
         sf_close(sndfileOut);
         sndfileOut = nullptr;
     }
+}
+
+
+void
+Stretcher::ListAudioDevices() {
+    // list all
+	int num_devices = 0;
+	PaErrorCode err = paNoError;
+	num_devices = Pa_GetDeviceCount();
+	if (num_devices < 0) {
+		err = (PaErrorCode)num_devices;
+		cerr << "ERROR: Pa_CountDevices returned " << err << endl;
+		return;
+	}
+
+	const PaDeviceInfo* dev_info;
+	for (int i = 0; i < num_devices; i++) {
+		dev_info = Pa_GetDeviceInfo(i);
+		cerr << "DEV " << i << " " << dev_info->name << " input ch:" << dev_info->maxInputChannels << " output ch:" << dev_info->maxOutputChannels;
+		cerr << " samplerate:" << dev_info->defaultSampleRate << endl;
+	}
+}
+
+int
+Stretcher::outputAudioCallback(
+        const void* inBuffer, void* outBuffer,
+        unsigned long frames,
+        const PaStreamCallbackTimeInfo* timeInfo,
+        PaStreamCallbackFlags flags,
+        void *data
+    ){
+    Stretcher *pst = (Stretcher *)data;
+
+    //float *in = (float*)inBuffer;
+	float *out = (float*)outBuffer;
+
+    // TODO: do something to sync with output buffer
+    for (int i = 0; i < frames; i++) {
+        for (int c = 0; c < pst->outputChannels; c++) {
+            if (pst->obuf) {
+                *out = pst->obuf[i * pst->outputChannels + c];
+            }
+            out++;
+        }
+	}
+	return 0;
+}
+
+void
+Stretcher::SetOutputStream(int index) {
+
+	const PaDeviceInfo* outInfo = Pa_GetDeviceInfo(index);
+    cerr << "OUT " << index << " " << outInfo->name << " input ch:" << outInfo->maxInputChannels << " output ch:" << outInfo->maxOutputChannels;
+	cerr << " samplerate:" << outInfo->defaultSampleRate << " output delay:" << outInfo->defaultLowOutputLatency << endl;
+	
+	PaStreamParameters outParam;
+    memset(&outParam, 0, sizeof(outParam));
+	outParam.channelCount = outInfo->maxOutputChannels;
+	outParam.device = index;
+	outParam.sampleFormat = paFloat32;
+	outParam.suggestedLatency = outInfo->defaultLowOutputLatency;
+	outParam.hostApiSpecificStreamInfo = NULL;
+
+    PaError er = Pa_OpenStream(
+		&outStream,
+	    nullptr,
+		&outParam,
+		outInfo->defaultSampleRate,
+		Stretcher::defBlockSize,
+		paNoFlag,
+		outputAudioCallback,
+		(void *)this
+	);
+
+	cerr << "Open output stream result " << er << endl;
 }
 
 

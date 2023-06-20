@@ -538,6 +538,9 @@ int main(int argc, char **argv)
     const int defBlockSize = 1024;
     PitchShifting::Stretcher *sther = new PitchShifting::Stretcher(defBlockSize, debug);
 
+    sther->ListAudioDevices();
+    sther->SetOutputStream(1);
+
     int typewin = (shortwin) ? 1 : (longwin) ? 2 : 0/*standard*/;
     if (crispness != -1) {
         sther->SetCrispness(crispness, &typewin, &lamination, &transients, &detector);
@@ -654,6 +657,8 @@ int main(int argc, char **argv)
         sther->FormantScale(formantScale);
         sther->SetIgnoreClipping(ignoreClipping);
 
+        sther->StartOutputStream();
+
         if (!realtime) {
             sther->StudyInputSound();
         }
@@ -738,6 +743,8 @@ int main(int argc, char **argv)
     // delete[] cbuf;
 
     sther->CloseFiles();
+
+    sther->StopOutputStream();
 
     free(fileName);
     free(fileNameOut);
