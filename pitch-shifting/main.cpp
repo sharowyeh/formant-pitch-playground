@@ -536,11 +536,7 @@ int main(int argc, char **argv)
 
     // TODO: we can start our stretcher here
     const int defBlockSize = 2048;
-    PitchShifting::Stretcher *sther = new PitchShifting::Stretcher(defBlockSize, 0);
-
-    sther->ListAudioDevices();
-	// 1: mymacout48k, 14: mywinout44k, 24: mywinout48k
-    sther->SetOutputStream(24);
+    PitchShifting::Stretcher *sther = new PitchShifting::Stretcher(defBlockSize, 1);
 
     int typewin = (shortwin) ? 1 : (longwin) ? 2 : 0/*standard*/;
     if (crispness != -1) {
@@ -598,12 +594,20 @@ int main(int argc, char **argv)
     int64_t inputFrames = 0;
     // TODO: so far input file is mandatory
     bool mandatory = true;
-    mandatory = sther->LoadInputFile(fileName, &sampleRate, &channels, &format, &inputFrames, ratio, duration);  
+    //mandatory = sther->LoadInputFile(fileName, &sampleRate, &channels, &format, &inputFrames, ratio, duration);  
     if (mandatory == false) {
         return 1;
     }
     // TODO: force align to input file, or use GetFileFormat()
-    sther->SetOutputFile(fileNameOut, sampleRate, 2, format);
+    //sther->SetOutputFile(fileNameOut, sampleRate, 2, format);
+
+	sther->ListAudioDevices();
+	// 0: mymacin48k, 8: mywinin44k, 39: mywinin48k
+	sther->SetInputStream(39, &sampleRate, &channels);
+	inputFrames = sampleRate * 10; //DEBUG: 3s?
+	// 1: mymacout48k, 14: mywinout44k, 24: mywinout48k
+	sther->SetOutputStream(24);
+
 
     RubberBandStretcher::Options options = 0;
     options = sther->SetOptions(finer, realtime, typewin, smoothing, formant,
@@ -653,11 +657,12 @@ int main(int argc, char **argv)
 
         sther->Create(sampleRate, channels, options, ratio, frequencyshift);
         
-        sther->ExpectedInputDuration(inputFrames); // estimate from input file
+        //sther->ExpectedInputDuration(inputFrames); // estimate from input file
         sther->MaxProcessSize(defBlockSize);
         sther->FormantScale(formantScale);
         sther->SetIgnoreClipping(ignoreClipping);
 
+		sther->StartInputStream();
 		sther->StartOutputStream();
 
         if (!realtime) {
@@ -711,6 +716,7 @@ int main(int argc, char **argv)
             
             // exit while loop if all input frames are processed
             if (frame >= inputFrames) {
+				cerr << "=== Stop reading inputs ===" << endl;
                 // TODO: original design is frame + blockSize >= total input frames
                 reading = false;
             }
@@ -745,8 +751,7 @@ int main(int argc, char **argv)
 
     sther->CloseFiles();
 
-	//sther->StartOutputStream();
-	sther->WaitOutputStream();
+	sther->WaitStream();
 	sther->StopOutputStream();
 
     free(fileName);

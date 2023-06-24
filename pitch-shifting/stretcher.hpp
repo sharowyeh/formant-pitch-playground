@@ -86,18 +86,28 @@ public:
     void ListAudioDevices();
     PaStreamCallback *debugCallback;
 
+	PaStream *inStream;
     PaStream *outStream;
-    // TODO: design for input or output device audio stream
-    void SetOutputStream(int index);
 
-    void StartOutputStream() { if(outStream) Pa_StartStream(outStream); };
-	void WaitOutputStream(int timeout = 2000) { if (outStream) Pa_Sleep(timeout); };
-    void StopOutputStream() { if(outStream) Pa_StopStream(outStream); };
+	void SetInputStream(int index, int *pSampleRate = nullptr, int *pChannels = nullptr);
+	void StartInputStream() { if (inStream) Pa_StartStream(inStream); }
+	void StopInputStream() { if (inStream) Pa_StopStream(inStream); }
+    void SetOutputStream(int index);
+	void StartOutputStream() { if (outStream) Pa_StartStream(outStream); };
+	void StopOutputStream() { if (outStream) Pa_StopStream(outStream); };
+	// TODO: do something in alter thread
+	void WaitStream(int timeout = 2000) { if (inStream || outStream) Pa_Sleep(timeout); };
 
 protected:
     // make sure deconstruction will be done
     void dispose();
 
+	static int inputAudioCallback(
+		const void* inBuffer, void* outBuffer,
+		unsigned long frames,
+		const PaStreamCallbackTimeInfo* timeInfo,
+		PaStreamCallbackFlags flags,
+		void *data);
     static int outputAudioCallback(
         const void* inBuffer, void* outBuffer,
         unsigned long frames,
@@ -174,15 +184,16 @@ private:
     // buffer for output audio frame
     float *obuf;
 
+	std::mutex inMutex;
+	std::deque<float*> inChunks;
 	// DEBUG: buffer for streamming
 	//float vbuf[65536 * 16] = { 0 };
 	// can be a pointer to vbuf
 	//size_t vbufRead = 0;
 	//size_t vbufWrite = 0;
-	std::mutex mtx;
-
+	std::mutex outMutex;
 	int chunkWrite = 0;
-	std::deque<float*> chunks;
+	std::deque<float*> outChunks;
 	int outDelayFrames = 24000;
 
     int dropFrames;

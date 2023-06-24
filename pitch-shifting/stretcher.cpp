@@ -14,7 +14,9 @@ namespace PitchShifting {
 Stretcher::Stretcher(int defBlockSize, int debugLevel) {
     // for port audio initialization
     Pa_Initialize();
+	inStream = nullptr;
     outStream = nullptr;
+	chunkWrite = 0;
 
     debug = debugLevel;
     quiet = (debugLevel < 2);
@@ -659,9 +661,25 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
     int blockSize = Stretcher::defBlockSize;
 
     int count = -1;
-    if ((count = sf_readf_float(sndfileIn, ibuf, blockSize)) < 0) {
-        return false;
-    }
+	// separate by file or by stream
+    if (sndfileIn) {
+		if ((count = sf_readf_float(sndfileIn, ibuf, blockSize)) < 0) {
+			return false;
+		}
+	}
+	if (inStream) {
+		std::lock_guard<std::mutex> lock(inMutex);
+		cerr << "!!! Read in chunks " << inChunks.size() << endl;
+		if (inChunks.size() > 0) {
+			memcpy(ibuf, inChunks.front(), sizeof(float) * blockSize * inputChannels);
+			inChunks.pop_front();
+			count = blockSize;
+			// TODO: find a way to drop frame if can not handle
+		}
+		else {
+			return false; // TODO: need return define to caller to stop while-loop for reading frames
+		}
+	}
     // NOTE: countIn will be the same with total frames from input
     *pCountIn += count;
 
@@ -671,19 +689,22 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
         }
     }
 
-    // TODO: without sndfile, we may not be able to ensure the final process
-    bool isFinal = (*pFrame + blockSize >= sfinfoIn.frames);
+    // separate by file or by stream
+	bool isFinal = false;
+	if (sndfileIn) {
+		isFinal = (*pFrame + blockSize >= sfinfoIn.frames);
 
-    if (count == 0) {
-        if (debug > 1) {
-            cerr << "at frame " << *pFrame << " of " << sfinfoIn.frames << ", read count = " << count << ": marking final as true" << endl;
-        }
-        isFinal = true;
-    }
-    
-    if (debug > 2) {
-        cerr << "in = " << *pCountIn << ", count = " << count << ", bs = " << blockSize << ", frame = " << *pFrame << ", frames = " << sfinfoIn.frames << ", final = " << isFinal << endl;
-    }
+		if (count == 0) {
+			if (debug > 1) {
+				cerr << "at frame " << *pFrame << " of " << sfinfoIn.frames << ", read count = " << count << ": marking final as true" << endl;
+			}
+			isFinal = true;
+		}
+
+		if (debug > 2) {
+			cerr << "in = " << *pCountIn << ", count = " << count << ", bs = " << blockSize << ", frame = " << *pFrame << ", frames = " << sfinfoIn.frames << ", final = " << isFinal << endl;
+		}
+	}
 
     pts->process(cbuf, count, isFinal);
     // increase frame number to caller
@@ -800,24 +821,24 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
 		}
 
 		{
-			std::lock_guard<std::mutex> lock(mtx);
-			cerr << "!!! Write chunks " << chunks.size() << ", chunkWrite " << chunkWrite << endl;
+			std::lock_guard<std::mutex> lock(outMutex);
+			cerr << "!!! Write out chunks " << outChunks.size() << ", chunkWrite " << chunkWrite << endl;
 			int currSize = blockSize * outputChannels;
 			auto obufPos = obuf;
 			while (currSize > 0) {
-				if (chunkWrite == 0 || chunks.size() == 0) {
+				if (chunkWrite == 0 || outChunks.size() == 0) {
 					auto chunk = new float[defBlockSize * outputChannels];
-					chunks.push_back(chunk);
+					outChunks.push_back(chunk);
 				}
 				int restSize = defBlockSize * outputChannels - chunkWrite;
 				if (currSize > restSize) {
-					memcpy(&chunks.back()[chunkWrite], obufPos, sizeof(float) * restSize);
+					memcpy(&outChunks.back()[chunkWrite], obufPos, sizeof(float) * restSize);
 					currSize -= restSize;
 					obufPos += restSize;
 					chunkWrite = 0;
 				}
 				else {
-					memcpy(&chunks.back()[chunkWrite], obufPos, sizeof(float) * currSize);
+					memcpy(&outChunks.back()[chunkWrite], obufPos, sizeof(float) * currSize);
 					chunkWrite += currSize;
 					currSize -= currSize;
 				}
@@ -886,6 +907,29 @@ Stretcher::ListAudioDevices() {
 }
 
 int
+Stretcher::inputAudioCallback(
+	const void* inBuffer, void* outBuffer,
+	unsigned long frames,
+	const PaStreamCallbackTimeInfo* timeInfo,
+	PaStreamCallbackFlags flags,
+	void *data
+	) {
+	Stretcher *pst = (Stretcher *)data;
+
+	float *in = (float*)inBuffer;
+	// TODO: may quick check levels to drop frames prevent too many input can't process immediately
+	{
+		std::lock_guard<std::mutex> lock(pst->inMutex);
+		cerr << "!!! Write in chunks " << pst->inChunks.size() << endl;
+		auto tmp = new float[frames * pst->inputChannels];
+		memcpy(tmp, in, sizeof(float) * frames * pst->inputChannels);
+		pst->inChunks.push_back(tmp);
+	}
+
+	return 0;
+}
+
+int
 Stretcher::outputAudioCallback(
         const void* inBuffer, void* outBuffer,
         unsigned long frames,
@@ -899,16 +943,16 @@ Stretcher::outputAudioCallback(
 	float *out = (float*)outBuffer;
 
 	{
-		std::lock_guard<std::mutex> lock(pst->mtx);
+		std::lock_guard<std::mutex> lock(pst->outMutex);
 
-		cerr << "!!! Read chunks " << pst->chunks.size() << endl;
+		cerr << "!!! Read out chunks " << pst->outChunks.size() << endl;
 		if (pst->outDelayFrames > 0) {
-			if (pst->chunks.size() > pst->outDelayFrames / pst->defBlockSize)
+			if (pst->outChunks.size() > pst->outDelayFrames / pst->defBlockSize)
 				pst->outDelayFrames = 0;
 		}
-		if (pst->outDelayFrames <= 0 && pst->chunks.size() > 0) {
-			memcpy(out, pst->chunks.front(), sizeof(float) * frames * pst->outputChannels);
-			pst->chunks.pop_front();
+		if (pst->outDelayFrames <= 0 && pst->outChunks.size() > 0) {
+			memcpy(out, pst->outChunks.front(), sizeof(float) * frames * pst->outputChannels);
+			pst->outChunks.pop_front();
 		}
 
 		// NOTE: fixed buffer usage, TODO: need design how to ensure buffer prepared
@@ -923,9 +967,54 @@ Stretcher::outputAudioCallback(
 }
 
 void
+Stretcher::SetInputStream(int index, int *pSampleRate, int *pChannels) {
+
+	const PaDeviceInfo* inInfo = Pa_GetDeviceInfo(index);
+	if (!inInfo) {
+		cerr << "No device found at " << index << endl;
+		return;
+	}
+	cerr << "IN " << index << " " << inInfo->name << " input ch:" << inInfo->maxInputChannels << " output ch:" << inInfo->maxOutputChannels;
+	cerr << " samplerate:" << inInfo->defaultSampleRate << " input delay:" << inInfo->defaultLowInputLatency << endl;
+
+	PaStreamParameters inParam;
+	memset(&inParam, 0, sizeof(inParam));
+	inParam.channelCount = inInfo->maxInputChannels;
+	inParam.device = index;
+	inParam.sampleFormat = paFloat32;
+	inParam.suggestedLatency = inInfo->defaultLowInputLatency;
+	inParam.hostApiSpecificStreamInfo = NULL;
+
+	PaError er = Pa_OpenStream(
+		&inStream,
+		&inParam,
+		nullptr,
+		inInfo->defaultSampleRate,
+		Stretcher::defBlockSize,
+		paNoFlag,
+		inputAudioCallback,
+		(void *)this
+	);
+	cerr << "Open input stream result " << er << endl;
+
+	// NOTE: overwrite to file input
+	if (Stretcher::inputChannels != inInfo->maxInputChannels) {
+		Stretcher::inputChannels = inInfo->maxInputChannels;
+		Stretcher::reallocInBuffer = true;
+	}
+
+	if (pSampleRate) *pSampleRate = inInfo->defaultSampleRate;
+	if (pChannels) *pChannels = inInfo->maxInputChannels;
+}
+
+void
 Stretcher::SetOutputStream(int index) {
 
 	const PaDeviceInfo* outInfo = Pa_GetDeviceInfo(index);
+	if (!outInfo) {
+		cerr << "No device found at " << index << endl;
+		return;
+	}
     cerr << "OUT " << index << " " << outInfo->name << " input ch:" << outInfo->maxInputChannels << " output ch:" << outInfo->maxOutputChannels;
 	cerr << " samplerate:" << outInfo->defaultSampleRate << " output delay:" << outInfo->defaultLowOutputLatency << endl;
 	
@@ -947,8 +1036,13 @@ Stretcher::SetOutputStream(int index) {
 		outputAudioCallback,
 		(void *)this
 	);
-
 	cerr << "Open output stream result " << er << endl;
+
+	// NOTE: overwtie to file output
+	if (Stretcher::outputChannels != outInfo->maxOutputChannels) {
+		Stretcher::outputChannels = outInfo->maxOutputChannels;
+		Stretcher::reallocOutBuffer = true;
+	}
 }
 
 
