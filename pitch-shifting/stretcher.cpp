@@ -50,7 +50,7 @@ Stretcher::Stretcher(int defBlockSize, int debugLevel) {
 
     inputChannels = 0;
     outputChannels = 0;
-    defBlockSize = 1024;
+	Stretcher::defBlockSize = defBlockSize;
     reallocInBuffer = false;
     reallocOutBuffer = false;
     cbufLen = 0;
@@ -493,6 +493,8 @@ Stretcher::PrepareBuffer() {
             delete[] cbuf;
             cbuf = nullptr;
         }
+		// reset reallocate flags
+		reallocInBuffer = false;
     }
 
     if (!ibuf) {
@@ -511,6 +513,8 @@ Stretcher::PrepareBuffer() {
             delete[] obuf;
             obuf = nullptr;
         }
+		// reset reallocate flags
+		reallocOutBuffer = false;
     }
     if (!obuf) {
         obuf = new float[outputChannels * defBlockSize];
@@ -768,7 +772,7 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
         *pCountOut += blockSize;
 
         // TODO: should be merge/separate channels instead of this dirty way
-        int channels = std::max(inputChannels, outputChannels);
+        int channels = max(inputChannels, outputChannels);
         for (size_t c = 0; c < channels; ++c) {
             size_t cin = (c < inputChannels) ? c : inputChannels - 1;
             size_t cout = (c < outputChannels) ? c : outputChannels - 1;
@@ -783,14 +787,14 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
                         gain = (0.999f / fabsf(cbuf[cin][i]));
                     }
                 }
-                // TODO: do something to sync with output stream
+				// TODO: do something to sync with output stream
                 obuf[i * channels + cout] = value;
             }
         }
-        
-        if (sndfileOut) {
-            sf_writef_float(sndfileOut, obuf, blockSize);
-        }
+
+		if (sndfileOut) {
+			sf_writef_float(sndfileOut, obuf, blockSize);
+		}
     } // while (avail)
 
     if (clipping) {
@@ -862,14 +866,14 @@ Stretcher::outputAudioCallback(
     //float *in = (float*)inBuffer;
 	float *out = (float*)outBuffer;
 
-    // TODO: do something to sync with output buffer
-    for (int i = 0; i < frames; i++) {
-        for (int c = 0; c < pst->outputChannels; c++) {
-            if (pst->obuf) {
-                *out = pst->obuf[i * pst->outputChannels + c];
-            }
-            out++;
-        }
+	// TODO: do something to sync with output buffer
+	for (int i = 0; i < frames; i++) {
+		for (int c = 0; c < pst->outputChannels; c++) {
+			if (pst->obuf) {
+				*out = pst->obuf[i * pst->outputChannels + c];
+			}
+		out++;
+		}
 	}
 	return 0;
 }
