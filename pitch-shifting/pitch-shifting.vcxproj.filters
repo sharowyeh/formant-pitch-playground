@@ -30,6 +30,9 @@
     <ClCompile Include="..\getopt\getopt.c">
       <Filter>getopt</Filter>
     </ClCompile>
+    <ClCompile Include="stretcher.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\getopt\getopt.h">
@@ -37,6 +40,9 @@
     </ClInclude>
     <ClInclude Include="..\getopt\unistd.h">
       <Filter>getopt</Filter>
+    </ClInclude>
+    <ClInclude Include="stretcher.hpp">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

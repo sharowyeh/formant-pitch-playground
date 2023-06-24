@@ -147,6 +147,7 @@
     <ClCompile Include="..\getopt\getopt_long.c" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="pitch-shifting.cpp" />
+    <ClCompile Include="stretcher.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\portaudio\build\msvc\portaudio.vcxproj">
@@ -159,6 +160,7 @@
   <ItemGroup>
     <ClInclude Include="..\getopt\getopt.h" />
     <ClInclude Include="..\getopt\unistd.h" />
+    <ClInclude Include="stretcher.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
