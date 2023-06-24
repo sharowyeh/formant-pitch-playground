@@ -535,11 +535,12 @@ int main(int argc, char **argv)
     }
 
     // TODO: we can start our stretcher here
-    const int defBlockSize = 1024;
-    PitchShifting::Stretcher *sther = new PitchShifting::Stretcher(defBlockSize, debug);
+    const int defBlockSize = 2048;
+    PitchShifting::Stretcher *sther = new PitchShifting::Stretcher(defBlockSize, 0);
 
     sther->ListAudioDevices();
-    sther->SetOutputStream(1);
+	// 1: mymacout48k, 14: mywinout44k, 24: mywinout48k
+    sther->SetOutputStream(24);
 
     int typewin = (shortwin) ? 1 : (longwin) ? 2 : 0/*standard*/;
     if (crispness != -1) {
@@ -657,7 +658,7 @@ int main(int argc, char **argv)
         sther->FormantScale(formantScale);
         sther->SetIgnoreClipping(ignoreClipping);
 
-        sther->StartOutputStream();
+		sther->StartOutputStream();
 
         if (!realtime) {
             sther->StudyInputSound();
@@ -744,7 +745,9 @@ int main(int argc, char **argv)
 
     sther->CloseFiles();
 
-    sther->StopOutputStream();
+	//sther->StartOutputStream();
+	sther->WaitOutputStream();
+	sther->StopOutputStream();
 
     free(fileName);
     free(fileNameOut);

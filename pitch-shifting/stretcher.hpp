@@ -14,6 +14,7 @@
 // for synchronization buffer between rubberband stretcher and portaudio callback
 #include <mutex>
 #include <condition_variable>
+#include <deque>
 
 using std::cerr;
 using std::endl;
@@ -88,7 +89,9 @@ public:
     PaStream *outStream;
     // TODO: design for input or output device audio stream
     void SetOutputStream(int index);
+
     void StartOutputStream() { if(outStream) Pa_StartStream(outStream); };
+	void WaitOutputStream(int timeout = 2000) { if (outStream) Pa_Sleep(timeout); };
     void StopOutputStream() { if(outStream) Pa_StopStream(outStream); };
 
 protected:
@@ -158,7 +161,7 @@ private:
 
     int inputChannels;
     int outputChannels;
-    const int defBlockSize = 1024;
+    int defBlockSize = 1024;
     // buffer reallocation depends on channels and block size, reallocation via input/output changes
     bool reallocInBuffer;
     bool reallocOutBuffer;
@@ -170,6 +173,17 @@ private:
     float *ibuf;
     // buffer for output audio frame
     float *obuf;
+
+	// DEBUG: buffer for streamming
+	//float vbuf[65536 * 16] = { 0 };
+	// can be a pointer to vbuf
+	//size_t vbufRead = 0;
+	//size_t vbufWrite = 0;
+	std::mutex mtx;
+
+	int chunkWrite = 0;
+	std::deque<float*> chunks;
+	int outDelayFrames = 24000;
 
     int dropFrames;
     bool ignoreClipping;

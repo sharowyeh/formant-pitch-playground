@@ -787,13 +787,45 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
                         gain = (0.999f / fabsf(cbuf[cin][i]));
                     }
                 }
-				// TODO: do something to sync with output stream
+
                 obuf[i * channels + cout] = value;
+				// NOTE: use memcpy as well, for sequence memory allocation
+				//vbuf[vbufWrite + i * channels + cout] = value;
             }
         }
 
+		// output file before later variable changes for chunks
 		if (sndfileOut) {
 			sf_writef_float(sndfileOut, obuf, blockSize);
+		}
+
+		{
+			std::lock_guard<std::mutex> lock(mtx);
+			cerr << "!!! Write chunks " << chunks.size() << ", chunkWrite " << chunkWrite << endl;
+			int currSize = blockSize * outputChannels;
+			auto obufPos = obuf;
+			while (currSize > 0) {
+				if (chunkWrite == 0 || chunks.size() == 0) {
+					auto chunk = new float[defBlockSize * outputChannels];
+					chunks.push_back(chunk);
+				}
+				int restSize = defBlockSize * outputChannels - chunkWrite;
+				if (currSize > restSize) {
+					memcpy(&chunks.back()[chunkWrite], obufPos, sizeof(float) * restSize);
+					currSize -= restSize;
+					obufPos += restSize;
+					chunkWrite = 0;
+				}
+				else {
+					memcpy(&chunks.back()[chunkWrite], obufPos, sizeof(float) * currSize);
+					chunkWrite += currSize;
+					currSize -= currSize;
+				}
+			}
+			// NOTE: fixed buffer usage...
+			//cerr << "!!! vbufWrite " << vbufWrite << ", ptr " << &vbuf[vbufWrite] << endl;
+			//memcpy(&vbuf[vbufWrite], obuf, sizeof(float) * blockSize * outputChannels);
+			//vbufWrite += blockSize * outputChannels;
 		}
     } // while (avail)
 
@@ -866,15 +898,27 @@ Stretcher::outputAudioCallback(
     //float *in = (float*)inBuffer;
 	float *out = (float*)outBuffer;
 
-	// TODO: do something to sync with output buffer
-	for (int i = 0; i < frames; i++) {
-		for (int c = 0; c < pst->outputChannels; c++) {
-			if (pst->obuf) {
-				*out = pst->obuf[i * pst->outputChannels + c];
-			}
-		out++;
+	{
+		std::lock_guard<std::mutex> lock(pst->mtx);
+
+		cerr << "!!! Read chunks " << pst->chunks.size() << endl;
+		if (pst->outDelayFrames > 0) {
+			if (pst->chunks.size() > pst->outDelayFrames / pst->defBlockSize)
+				pst->outDelayFrames = 0;
 		}
+		if (pst->outDelayFrames <= 0 && pst->chunks.size() > 0) {
+			memcpy(out, pst->chunks.front(), sizeof(float) * frames * pst->outputChannels);
+			pst->chunks.pop_front();
+		}
+
+		// NOTE: fixed buffer usage, TODO: need design how to ensure buffer prepared
+		//if (pst->vbufWrite > 48000 && (pst->vbufWrite - pst->vbufRead) > frames * 2) {
+		//	cerr << "!!! vbufRead " << pst->vbufRead << ", ptr " << &pst->vbuf[pst->vbufRead] << endl;
+		//	memcpy(out, &(pst->vbuf[pst->vbufRead]), sizeof(float) * frames * pst->outputChannels);
+		//	pst->vbufRead += frames * pst->outputChannels;
+		//}
 	}
+
 	return 0;
 }
 
