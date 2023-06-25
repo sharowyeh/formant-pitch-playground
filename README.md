@@ -9,15 +9,19 @@ https://courses.engr.illinois.edu/ece420/sp2023/lab5/lab/#overlap-add-algorithm
 
 # impl #
 
-Rubberband
+Rubberband: 
 https://github.com/breakfastquay/rubberband
 
-c++ implementation:
+c++ implementation: 
 https://github.com/terrykong/Phase-Vocoder.git
 
-python implementation:
+python implementation: 
 https://github.com/sannawag/TD-PSOLA
 
+JUCE vst plugin: 
+https://forum.juce.com/t/realtime-rubberband-pitchshifter-working-example/46874/5
+repo: 
+https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
 
 # audio-processing.sln for windows env #
 
