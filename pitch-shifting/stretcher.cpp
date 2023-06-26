@@ -5,6 +5,8 @@
 static void usleep(unsigned long usec) {
     ::Sleep(usec == 0 ? 0 : usec < 1000 ? 1 : usec / 1000);
 }
+// TODO: for std::max/min in cross-platform design
+// undefine minwindef.h min/max marco and use stl is considered
 #else
 #include <unistd.h>
 #endif
@@ -669,7 +671,10 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
 	}
 	if (inStream) {
 		std::lock_guard<std::mutex> lock(inMutex);
+        // TODO: temerary ignore in my macbook prevent debugger console freeze
+#ifdef _WIN32
 		cerr << "!!! Read in chunks " << inChunks.size() << endl;
+#endif
 		if (inChunks.size() > 0) {
 			memcpy(ibuf, inChunks.front(), sizeof(float) * blockSize * inputChannels);
 			inChunks.pop_front();
@@ -793,7 +798,7 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
         *pCountOut += blockSize;
 
         // TODO: should be merge/separate channels instead of this dirty way
-        int channels = max(inputChannels, outputChannels);
+        int channels = std::max(inputChannels, outputChannels);
         for (size_t c = 0; c < channels; ++c) {
             size_t cin = (c < inputChannels) ? c : inputChannels - 1;
             size_t cout = (c < outputChannels) ? c : outputChannels - 1;
@@ -966,13 +971,13 @@ Stretcher::outputAudioCallback(
 	return 0;
 }
 
-void
+bool
 Stretcher::SetInputStream(int index, int *pSampleRate, int *pChannels) {
 
 	const PaDeviceInfo* inInfo = Pa_GetDeviceInfo(index);
 	if (!inInfo) {
 		cerr << "No device found at " << index << endl;
-		return;
+		return false;
 	}
 	cerr << "IN " << index << " " << inInfo->name << " input ch:" << inInfo->maxInputChannels << " output ch:" << inInfo->maxOutputChannels;
 	cerr << " samplerate:" << inInfo->defaultSampleRate << " input delay:" << inInfo->defaultLowInputLatency << endl;
@@ -1005,15 +1010,17 @@ Stretcher::SetInputStream(int index, int *pSampleRate, int *pChannels) {
 
 	if (pSampleRate) *pSampleRate = inInfo->defaultSampleRate;
 	if (pChannels) *pChannels = inInfo->maxInputChannels;
+
+    return er == paNoError;
 }
 
-void
+bool
 Stretcher::SetOutputStream(int index) {
 
 	const PaDeviceInfo* outInfo = Pa_GetDeviceInfo(index);
 	if (!outInfo) {
 		cerr << "No device found at " << index << endl;
-		return;
+		return false;
 	}
     cerr << "OUT " << index << " " << outInfo->name << " input ch:" << outInfo->maxInputChannels << " output ch:" << outInfo->maxOutputChannels;
 	cerr << " samplerate:" << outInfo->defaultSampleRate << " output delay:" << outInfo->defaultLowOutputLatency << endl;
@@ -1043,6 +1050,8 @@ Stretcher::SetOutputStream(int index) {
 		Stretcher::outputChannels = outInfo->maxOutputChannels;
 		Stretcher::reallocOutBuffer = true;
 	}
+
+    return er == paNoError;
 }
 
 

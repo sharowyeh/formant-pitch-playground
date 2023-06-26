@@ -15,6 +15,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <deque>
+#include "src/common/RingBuffer.h"
 
 using std::cerr;
 using std::endl;
@@ -89,10 +90,10 @@ public:
 	PaStream *inStream;
     PaStream *outStream;
 
-	void SetInputStream(int index, int *pSampleRate = nullptr, int *pChannels = nullptr);
+	bool SetInputStream(int index, int *pSampleRate = nullptr, int *pChannels = nullptr);
 	void StartInputStream() { if (inStream) Pa_StartStream(inStream); }
 	void StopInputStream() { if (inStream) Pa_StopStream(inStream); }
-    void SetOutputStream(int index);
+    bool SetOutputStream(int index);
 	void StartOutputStream() { if (outStream) Pa_StartStream(outStream); };
 	void StopOutputStream() { if (outStream) Pa_StopStream(outStream); };
 	// TODO: do something in alter thread
@@ -184,6 +185,8 @@ private:
     // buffer for output audio frame
     float *obuf;
 
+    // TODO: considering ring buffer performance and maintainess 
+    //       try RingBuffer?
 	std::mutex inMutex;
 	std::deque<float*> inChunks;
 	// DEBUG: buffer for streamming

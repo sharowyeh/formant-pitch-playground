@@ -23,20 +23,14 @@
 
 // source code from rubberband repo, modify references for alt project
 
-#include "stretcher.hpp"
-
-#include "rubberband/RubberBandStretcher.h"
-
 #include <iostream>
-#pragma comment(lib, "sndfile.lib")
-#include <sndfile.h>
 #include <cmath>
 #include <time.h>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 
-#include <fstream>
+#include "stretcher.hpp"
 
 // for rubberband profiler to dump signal process information,
 // get rubberband source code from github within same system installed version
@@ -62,11 +56,6 @@ static void usleep(unsigned long usec) {
 #ifdef _WIN32
 using RubberBand::gettimeofday;
 #endif
-
-// for port audio control input/output devices
-#include <portaudio.h>
-
-using RubberBand::RubberBandStretcher;
 
 using std::cerr;
 using std::endl;
@@ -234,98 +223,8 @@ void print_usage(bool fullHelp, bool isR3, std::string myName) {
     }
 }
 
-static int portAudioCallback(
-	const void* in_buffer, void* out_buffer,
-	unsigned long frames_buffer,
-	const PaStreamCallbackTimeInfo* time_info,
-	PaStreamCallbackFlags flags,
-	void *user_data) {
-
-	// DEBUG: just copy
-	float *in = (float*)in_buffer;
-	float *out = (float*)out_buffer;
-	for (int i = 0; i < frames_buffer; i++) {
-		*out = *in;
-		out++;
-		*out = *in;
-		out++;
-		in++;
-	}
-	return 0;
-}
-
-
-PaStream *stream;
-void checkAudioDevices() {
-	// list all
-	int num_devices = 0;
-	PaErrorCode err = paNoError;
-	num_devices = Pa_GetDeviceCount();
-	if (num_devices < 0) {
-		err = (PaErrorCode)num_devices;
-		cerr << "ERROR: Pa_CountDevices returned " << err << endl;
-		return;
-	}
-
-	const PaDeviceInfo* dev_info;
-	for (int i = 0; i < num_devices; i++) {
-		dev_info = Pa_GetDeviceInfo(i);
-		cerr << "DEV " << i << " " << dev_info->name << " inp ch " << dev_info->maxInputChannels << " out ch " << dev_info->maxOutputChannels << endl;
-		cerr << "       " << "s " << dev_info->defaultSampleRate << endl;
-	}
-	
-	int in_dev_num = 0; // for my desktop setup
-	int out_dev_num = 1; // for my desktop setup
-	const PaDeviceInfo* in_dev = Pa_GetDeviceInfo(in_dev_num);
-	const PaDeviceInfo* out_dev = Pa_GetDeviceInfo(out_dev_num);
-
-	cerr << "INP " << in_dev_num << " " << in_dev->name << " inp ch " << in_dev->maxInputChannels << " out ch " << in_dev->maxOutputChannels << endl;
-	cerr << "       " << "s " << in_dev->defaultSampleRate << " inp delay " << in_dev->defaultLowInputLatency << endl;
-	cerr << "OUT " << out_dev_num << " " << out_dev->name << " out ch " << out_dev->maxInputChannels << " out ch " << out_dev->maxOutputChannels << endl;
-	cerr << "       " << "s " << out_dev->defaultSampleRate << " out delay " << out_dev->defaultLowOutputLatency << endl;
-	
-	double srate = in_dev->defaultSampleRate;
-	unsigned long frames_buff = 1024; // frames per buffer
-	PaStreamParameters in_param;
-	PaStreamParameters out_param;
-
-	memset(&in_param, 0, sizeof(in_param));
-	in_param.channelCount = in_dev->maxInputChannels;
-	in_param.device = in_dev_num;
-	in_param.sampleFormat = paFloat32;
-	in_param.suggestedLatency = in_dev->defaultLowInputLatency;
-	in_param.hostApiSpecificStreamInfo = NULL;//See you specific host's API docs for info on using this field
-
-	memset(&out_param, 0, sizeof(out_param));
-	out_param.channelCount = out_dev->maxOutputChannels;
-	out_param.device = out_dev_num;
-	out_param.sampleFormat = paFloat32;
-	out_param.suggestedLatency = out_dev->defaultLowOutputLatency;
-	out_param.hostApiSpecificStreamInfo = NULL;
-
-	PaError er = Pa_OpenStream(
-		&stream,
-		&in_param,
-		&out_param,
-		srate,
-		frames_buff,
-		paNoFlag,
-		portAudioCallback,
-		(void *)NULL
-	);
-
-	cerr << "Open stream result " << er << endl;
-}
-
 int main(int argc, char **argv)
 {
-	// Pa_Initialize();
-	// checkAudioDevices();
-	// Pa_StartStream(stream);
-	// Pa_Sleep(60000);
-	// Pa_StopStream(stream);
-	// Pa_Terminate();
-
     double ratio = 1.0;
     double duration = 0.0;
     double pitchshift = 0.0;
@@ -592,22 +491,27 @@ int main(int argc, char **argv)
     int channels = 0;
     int format = 0;
     int64_t inputFrames = 0;
-    // TODO: so far input file is mandatory
-    bool mandatory = true;
-    //mandatory = sther->LoadInputFile(fileName, &sampleRate, &channels, &format, &inputFrames, ratio, duration);  
-    if (mandatory == false) {
+    // check input/output audio file or device
+    bool hasAudio = true;
+    //hasAudio = sther->LoadInputFile(fileName, &sampleRate, &channels, &format, &inputFrames, ratio, duration);  
+    if (hasAudio == false) {
         return 1;
     }
     // TODO: force align to input file, or use GetFileFormat()
     //sther->SetOutputFile(fileNameOut, sampleRate, 2, format);
 
 	sther->ListAudioDevices();
-	// 0: mymacin48k, 8: mywinin44k, 39: mywinin48k
-	sther->SetInputStream(39, &sampleRate, &channels);
+	// 0/2: mymacin48k, 8: mywinin44k, 39: mywinin48k
+	hasAudio = sther->SetInputStream(2, &sampleRate, &channels);
+    if (hasAudio == false) {
+        return 1;
+    }
 	inputFrames = sampleRate * 10; //DEBUG: 3s?
 	// 1: mymacout48k, 14: mywinout44k, 24: mywinout48k
-	sther->SetOutputStream(24);
-
+	hasAudio == sther->SetOutputStream(1);
+    if (hasAudio == false) {
+        return 1;
+    }
 
     RubberBandStretcher::Options options = 0;
     options = sther->SetOptions(finer, realtime, typewin, smoothing, formant,
