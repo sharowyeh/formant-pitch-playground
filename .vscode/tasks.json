@@ -7,7 +7,7 @@
             "args": [
                 "-fcolor-diagnostics",
                 "-fansi-escape-codes",
-                "-g",
+                //"-g", // set for exclude debugging info
                 "${file}",
                 "${fileDirname}/stretcher.cpp",
                 "-o",
@@ -15,7 +15,7 @@
                 "-I${fileDirname}",
                 "-I${workspaceFolder}/../rubberband",
                 "-I/opt/homebrew/include",
-                // "-L${workspaceFolder}/../rubberband/build", //wo using own built binaries
+                // "-L${workspaceFolder}/../rubberband/build", //set for using own built binaries
                 "-L/opt/homebrew/lib",
                 "-lportaudio",
                 "-lrubberband",
