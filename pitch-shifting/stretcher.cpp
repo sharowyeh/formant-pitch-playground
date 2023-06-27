@@ -676,9 +676,11 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
 		cerr << "!!! Read in chunks " << inChunks.size() << endl;
 #endif
 		if (inChunks.size() > 0) {
-			memcpy(ibuf, inChunks.front(), sizeof(float) * blockSize * inputChannels);
+			auto chunk = inChunks.front();
+			memcpy(ibuf, chunk, sizeof(float) * blockSize * inputChannels);
 			inChunks.pop_front();
 			count = blockSize;
+			delete[] chunk;
 			// TODO: find a way to drop frame if can not handle
 		}
 		else {
@@ -931,7 +933,7 @@ Stretcher::inputAudioCallback(
 		pst->inChunks.push_back(tmp);
 	}
 
-	return 0;
+	return paContinue;
 }
 
 int
@@ -956,8 +958,10 @@ Stretcher::outputAudioCallback(
 				pst->outDelayFrames = 0;
 		}
 		if (pst->outDelayFrames <= 0 && pst->outChunks.size() > 0) {
-			memcpy(out, pst->outChunks.front(), sizeof(float) * frames * pst->outputChannels);
+			auto chunk = pst->outChunks.front();
+			memcpy(out, chunk, sizeof(float) * frames * pst->outputChannels);
 			pst->outChunks.pop_front();
+			delete[] chunk;
 		}
 
 		// NOTE: fixed buffer usage, TODO: need design how to ensure buffer prepared
@@ -968,7 +972,7 @@ Stretcher::outputAudioCallback(
 		//}
 	}
 
-	return 0;
+	return paContinue;
 }
 
 bool
