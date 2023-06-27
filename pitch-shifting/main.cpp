@@ -608,15 +608,13 @@ int main(int argc, char **argv)
                 cerr << "Pass 2: Processing..." << endl;
             }
 
-            int p = int((double(frame) * 100.0) / inputFrames);
-            if (p > percent || frame == 0) {
-                percent = p;
-                if (!quiet) {
-                    cerr << "\r" << percent << "% ";
-                }
-            }
-            // NOTE: increased in call function
-            //frame += count;
+            // int p = int((double(frame) * 100.0) / inputFrames);
+            // if (p > percent || frame == 0) {
+            //     percent = p;
+            //     if (!quiet) {
+            //         cerr << "\r" << percent << "% ";
+            //     }
+            // }
             
             // exit while loop if all input frames are processed
             if (frame >= inputFrames) {

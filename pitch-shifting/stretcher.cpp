@@ -18,7 +18,7 @@ Stretcher::Stretcher(int defBlockSize, int debugLevel) {
     Pa_Initialize();
 	inStream = nullptr;
     outStream = nullptr;
-	chunkWrite = 0;
+	//chunkWrite = 0;
 
     debug = debugLevel;
     quiet = (debugLevel < 2);
@@ -55,12 +55,13 @@ Stretcher::Stretcher(int defBlockSize, int debugLevel) {
     inputChannels = 0;
     outputChannels = 0;
 	Stretcher::defBlockSize = defBlockSize;
-    reallocInBuffer = false;
-    reallocOutBuffer = false;
-    cbufLen = 0;
+    
     cbuf = nullptr;
     ibuf = nullptr;
     obuf = nullptr;
+    // we need channels, blocksize to initialize ringbuffer(2dim)
+    inBuffer = nullptr;
+    outBuffer = nullptr;
 
     dropFrames = 0;
     ignoreClipping = true;
@@ -77,21 +78,28 @@ Stretcher::~Stretcher() {
 void
 Stretcher::dispose() {
     if (ibuf) {
-        delete[] ibuf;
+        delete ibuf;
         ibuf = nullptr;
     }
     if (cbuf) {
-        for (int c = 0; c < cbufLen; c++) {
+        for (int c = 0; c < inputChannels; c++) {
             delete[] cbuf[c];
         }
         delete[] cbuf;
         cbuf = nullptr;
     }
     if (obuf) {
-        delete[] obuf;
+        delete obuf;
         obuf = nullptr;
     }
-
+    if (inBuffer) {
+        delete inBuffer;
+        inBuffer = nullptr;
+    }
+    if (outBuffer) {
+        delete outBuffer;
+        outBuffer = nullptr;
+    }
     Pa_Terminate();
 }
 
@@ -374,7 +382,7 @@ Stretcher::LoadInputFile(std::string fileName,
     Stretcher::ratio = ratio;
     Stretcher::duration = duration;
     if (Stretcher::inputChannels != sfinfoIn.channels) {
-        Stretcher::reallocInBuffer = true;
+        PrepareInputBuffer(sfinfoIn.channels, defBlockSize, reserveBuffer);
         Stretcher::inputChannels = sfinfoIn.channels;
     }
     *pSampleRate = sfinfoIn.samplerate;
@@ -439,14 +447,14 @@ Stretcher::SetOutputFile(std::string fileName,
     }
 
     if (Stretcher::outputChannels != sfinfoOut.channels) {
-        Stretcher::reallocOutBuffer = true;
+        PrepareOutputBuffer(sfinfoOut.channels, defBlockSize, reserveBuffer);
         Stretcher::outputChannels = sfinfoOut.channels;
     }
     return true;
 }
 
 void 
-Stretcher::Create(size_t sampleRate, size_t channels, int options, double timeRatio, double pitchScale) {
+Stretcher::Create(size_t sampleRate, int channels, int options, double timeRatio, double pitchScale) {
     if (pts) {
         delete pts;
     }
@@ -484,45 +492,47 @@ Stretcher::FormantScale(double scale) {
 }
 
 void
-Stretcher::PrepareBuffer() {
-    if (reallocInBuffer) {
-        if (ibuf) {
-            delete[] ibuf;
-            ibuf = nullptr;
+Stretcher::PrepareInputBuffer(int channels, int blocks, size_t reserves) {
+    // cleanup exists allocation
+    if (ibuf) {
+        delete ibuf;
+        ibuf = nullptr;
+    }
+    if (cbuf) {
+        for (int c = 0; c < Stretcher::inputChannels; c++) {
+            delete cbuf[c];
         }
-        if (cbuf) {
-            for (int c = 0; c < cbufLen; c++) {
-                delete[] cbuf[c];
-            }
-            delete[] cbuf;
-            cbuf = nullptr;
-        }
-		// reset reallocate flags
-		reallocInBuffer = false;
+        delete[] cbuf;
+        cbuf = nullptr;
     }
 
-    if (!ibuf) {
-        ibuf = new float[inputChannels * defBlockSize];
-    }
-    if (!cbuf) {
-        cbuf = new float *[inputChannels];
-        cbufLen = inputChannels;
-        for (size_t c = 0; c < inputChannels; ++c) {
-            cbuf[c] = new float[defBlockSize];
-        }
+    ibuf = new float[channels * blocks];
+    cbuf = new float *[channels];
+    for (int c = 0; c < channels; ++c) {
+        cbuf[c] = new float[blocks];
     }
 
-    if (reallocOutBuffer) {
-        if (obuf) {
-            delete[] obuf;
-            obuf = nullptr;
-        }
-		// reset reallocate flags
-		reallocOutBuffer = false;
+    if (inBuffer) {
+        delete inBuffer;
+        inBuffer = nullptr;
     }
-    if (!obuf) {
-        obuf = new float[outputChannels * defBlockSize];
+    inBuffer = new RingBuffer<float>(channels * blocks + reserves);
+}
+
+void
+Stretcher::PrepareOutputBuffer(int channels, int blocks, size_t reserves) {
+    // cleanup exists allocation
+    if (obuf) {
+        delete obuf;
+        obuf = nullptr;
     }
+    obuf = new float[channels * blocks];
+
+    if (outBuffer) {
+        delete outBuffer;
+        outBuffer = nullptr;
+    }
+    outBuffer = new RingBuffer<float>(channels * blocks + reserves);
 
 }
 
@@ -542,7 +552,6 @@ Stretcher::StudyInputSound(/*int blockSize*/) {
     // reset file position
     sf_seek(sndfileIn, 0, SEEK_SET);
     int channels = sfinfoIn.channels;
-    PrepareBuffer();
 
     int frame = 0;
     int percent = 0;
@@ -596,7 +605,6 @@ Stretcher::ProcessStartPad() {
     int toDrop = pts->getStartDelay();
     if (!realtime) return toDrop;
 
-    PrepareBuffer();
     int blockSize = Stretcher::defBlockSize; // only for original code design
 
     int toPad = pts->getPreferredStartPad();
@@ -658,7 +666,7 @@ bool
 Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
     // simply check for function refactoring
     if (!pts) return false;
-    PrepareBuffer();
+
     // for original code design, also be reused for retrieve data behavior
     int blockSize = Stretcher::defBlockSize;
 
@@ -668,6 +676,11 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
 		if ((count = sf_readf_float(sndfileIn, ibuf, blockSize)) < 0) {
 			return false;
 		}
+        if (sfinfoIn.channels * count > inBuffer->getWriteSpace()) {
+            cerr << "input buffer is full" << endl;
+        } else {
+            inBuffer->write(ibuf, sfinfoIn.channels * count);
+        }
 	}
 	if (inStream) {
 		std::lock_guard<std::mutex> lock(inMutex);
@@ -675,26 +688,33 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
 #ifdef _WIN32
 		cerr << "!!! Read in chunks " << inChunks.size() << endl;
 #endif
-		if (inChunks.size() > 0) {
-			auto chunk = inChunks.front();
-			memcpy(ibuf, chunk, sizeof(float) * blockSize * inputChannels);
-			inChunks.pop_front();
-			count = blockSize;
-			delete[] chunk;
-			// TODO: find a way to drop frame if can not handle
-		}
-		else {
-			return false; // TODO: need return define to caller to stop while-loop for reading frames
-		}
+		// if (inChunks.size() > 0) {
+		// 	auto chunk = inChunks.front();
+		// 	memcpy(ibuf, chunk, sizeof(float) * blockSize * inputChannels);
+		// 	inChunks.pop_front();
+		 	count = blockSize;
+		// 	delete chunk;
+		// 	// TODO: find a way to drop frame if can not handle
+		// }
+		// else {
+		// 	return false; // TODO: need return define to caller to stop while-loop for reading frames
+		// }
 	}
-    // NOTE: countIn will be the same with total frames from input
-    *pCountIn += count;
 
-    for (size_t c = 0; c < inputChannels; ++c) {
+    if (inputChannels * count > inBuffer->getReadSpace()) {
+        return false; // buffer not enough for process
+    } else {
+        inBuffer->read(ibuf, inputChannels * count);
+    }
+
+    for (int c = 0; c < inputChannels; ++c) {
         for (int i = 0; i < count; ++i) {
             cbuf[c][i] = ibuf[i * inputChannels + c];
         }
     }
+
+    // NOTE: countIn will be the same with total frames from input
+    *pCountIn += count;
 
     // separate by file or by stream
 	bool isFinal = false;
@@ -799,27 +819,40 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
 
         *pCountOut += blockSize;
 
-        // TODO: should be merge/separate channels instead of this dirty way
-        int channels = std::max(inputChannels, outputChannels);
-        for (size_t c = 0; c < channels; ++c) {
-            size_t cin = (c < inputChannels) ? c : inputChannels - 1;
-            size_t cout = (c < outputChannels) ? c : outputChannels - 1;
+        float value;
+        for (size_t c = 0; c < inputChannels; ++c) {
             for (int i = 0; i < blockSize; ++i) {
-                float value = gain * cbuf[cin][i];
+                value = gain * cbuf[c][i];
                 if (ignoreClipping) { // i.e. just clamp, don't bail out
                     if (value > 1.f) value = 1.f;
                     if (value < -1.f) value = -1.f;
                 } else {
                     if (value >= 1.f || value < -1.f) {
                         clipping = true;
-                        gain = (0.999f / fabsf(cbuf[cin][i]));
+                        gain = (0.999f / fabsf(cbuf[c][i]));
                     }
                 }
-
-                obuf[i * channels + cout] = value;
-				// NOTE: use memcpy as well, for sequence memory allocation
-				//vbuf[vbufWrite + i * channels + cout] = value;
+                cbuf[c][i] = value;
+                if (c < outputChannels) {
+                    obuf[i * outputChannels + c] = value;
+                }
             }
+        }
+        // rest of channels if output has more than input
+        for (int c = inputChannels; c < outputChannels; ++c) {
+            for (int i = 0; i < blockSize; ++i) {
+                obuf[i * outputChannels + c] = cbuf[0][i];
+            }
+        }
+
+        int writable = outBuffer->getWriteSpace();
+        if (outputChannels * blockSize > writable) {
+            cerr << "output buffer is full" << endl;
+        } else {
+            if (debugBuffer) {
+                cerr << "output buffer usage " << (int)((1.f - (float)writable / outBuffer->getSize()) * 100.f) << "%" << endl;
+            }
+            outBuffer->write(obuf, outputChannels * blockSize);
         }
 
 		// output file before later variable changes for chunks
@@ -829,31 +862,27 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
 
 		{
 			std::lock_guard<std::mutex> lock(outMutex);
-			cerr << "!!! Write out chunks " << outChunks.size() << ", chunkWrite " << chunkWrite << endl;
-			int currSize = blockSize * outputChannels;
-			auto obufPos = obuf;
-			while (currSize > 0) {
-				if (chunkWrite == 0 || outChunks.size() == 0) {
-					auto chunk = new float[defBlockSize * outputChannels];
-					outChunks.push_back(chunk);
-				}
-				int restSize = defBlockSize * outputChannels - chunkWrite;
-				if (currSize > restSize) {
-					memcpy(&outChunks.back()[chunkWrite], obufPos, sizeof(float) * restSize);
-					currSize -= restSize;
-					obufPos += restSize;
-					chunkWrite = 0;
-				}
-				else {
-					memcpy(&outChunks.back()[chunkWrite], obufPos, sizeof(float) * currSize);
-					chunkWrite += currSize;
-					currSize -= currSize;
-				}
-			}
-			// NOTE: fixed buffer usage...
-			//cerr << "!!! vbufWrite " << vbufWrite << ", ptr " << &vbuf[vbufWrite] << endl;
-			//memcpy(&vbuf[vbufWrite], obuf, sizeof(float) * blockSize * outputChannels);
-			//vbufWrite += blockSize * outputChannels;
+			// cerr << "!!! Write out chunks " << outChunks.size() << ", chunkWrite " << chunkWrite << endl;
+			// int currSize = blockSize * outputChannels;
+			// auto obufPos = obuf;
+			// while (currSize > 0) {
+			// 	if (chunkWrite == 0 || outChunks.size() == 0) {
+			// 		auto chunk = new float[defBlockSize * outputChannels];
+			// 		outChunks.push_back(chunk);
+			// 	}
+			// 	int restSize = defBlockSize * outputChannels - chunkWrite;
+			// 	if (currSize > restSize) {
+			// 		memcpy(&outChunks.back()[chunkWrite], obufPos, sizeof(float) * restSize);
+			// 		currSize -= restSize;
+			// 		obufPos += restSize;
+			// 		chunkWrite = 0;
+			// 	}
+			// 	else {
+			// 		memcpy(&outChunks.back()[chunkWrite], obufPos, sizeof(float) * currSize);
+			// 		chunkWrite += currSize;
+			// 		currSize -= currSize;
+			// 	}
+			// }
 		}
     } // while (avail)
 
@@ -927,11 +956,20 @@ Stretcher::inputAudioCallback(
 	// TODO: may quick check levels to drop frames prevent too many input can't process immediately
 	{
 		std::lock_guard<std::mutex> lock(pst->inMutex);
-		cerr << "!!! Write in chunks " << pst->inChunks.size() << endl;
-		auto tmp = new float[frames * pst->inputChannels];
-		memcpy(tmp, in, sizeof(float) * frames * pst->inputChannels);
-		pst->inChunks.push_back(tmp);
-	}
+		// cerr << "!!! Write in chunks " << pst->inChunks.size() << endl;
+		// auto tmp = new float[frames * pst->inputChannels];
+		// memcpy(tmp, in, sizeof(float) * frames * pst->inputChannels);
+		// pst->inChunks.push_back(tmp);
+        int writable = pst->inBuffer->getWriteSpace();
+        if (pst->inputChannels * frames > writable) {
+            cerr << "input buffer is full" << endl;
+        } else {
+            if (pst->debugBuffer) {
+                cerr << "input buffer usage " << (int)((1.f - (float)writable / pst->inBuffer->getSize()) * 100.f) << "%" << endl;
+            }
+            pst->inBuffer->write(in, pst->inputChannels * frames);
+        }
+    }
 
 	return paContinue;
 }
@@ -952,24 +990,29 @@ Stretcher::outputAudioCallback(
 	{
 		std::lock_guard<std::mutex> lock(pst->outMutex);
 
-		cerr << "!!! Read out chunks " << pst->outChunks.size() << endl;
-		if (pst->outDelayFrames > 0) {
-			if (pst->outChunks.size() > pst->outDelayFrames / pst->defBlockSize)
-				pst->outDelayFrames = 0;
-		}
-		if (pst->outDelayFrames <= 0 && pst->outChunks.size() > 0) {
-			auto chunk = pst->outChunks.front();
-			memcpy(out, chunk, sizeof(float) * frames * pst->outputChannels);
-			pst->outChunks.pop_front();
-			delete[] chunk;
-		}
-
-		// NOTE: fixed buffer usage, TODO: need design how to ensure buffer prepared
-		//if (pst->vbufWrite > 48000 && (pst->vbufWrite - pst->vbufRead) > frames * 2) {
-		//	cerr << "!!! vbufRead " << pst->vbufRead << ", ptr " << &pst->vbuf[pst->vbufRead] << endl;
-		//	memcpy(out, &(pst->vbuf[pst->vbufRead]), sizeof(float) * frames * pst->outputChannels);
-		//	pst->vbufRead += frames * pst->outputChannels;
-		//}
+		// cerr << "!!! Read out chunks " << pst->outChunks.size() << endl;
+		// if (pst->outDelayFrames > 0) {
+		// 	if (pst->outChunks.size() > pst->outDelayFrames / pst->defBlockSize)
+		// 		pst->outDelayFrames = 0;
+		// }
+		// if (pst->outDelayFrames <= 0 && pst->outChunks.size() > 0) {
+		// 	auto chunk = pst->outChunks.front();
+		// 	memcpy(out, chunk, sizeof(float) * frames * pst->outputChannels);
+		// 	pst->outChunks.pop_front();
+		// 	delete chunk;
+		// }
+        if (pst->outDelayFrames > 0) {
+            pst->outDelayFrames -= frames;
+            if (pst->outDelayFrames < 0) {
+                cerr << "=== Start reading outputs ====" << endl;
+            }
+            return paContinue;
+        }
+        if (pst->outputChannels * frames > pst->outBuffer->getReadSpace()) {
+            cerr << "output buffer is not enough" << endl;
+        } else {
+            pst->outBuffer->read(out, pst->outputChannels * frames);
+        }
 	}
 
 	return paContinue;
@@ -1008,8 +1051,8 @@ Stretcher::SetInputStream(int index, int *pSampleRate, int *pChannels) {
 
 	// NOTE: overwrite to file input
 	if (Stretcher::inputChannels != inInfo->maxInputChannels) {
+        PrepareInputBuffer(inInfo->maxInputChannels, defBlockSize, reserveBuffer);
 		Stretcher::inputChannels = inInfo->maxInputChannels;
-		Stretcher::reallocInBuffer = true;
 	}
 
 	if (pSampleRate) *pSampleRate = inInfo->defaultSampleRate;
@@ -1051,8 +1094,8 @@ Stretcher::SetOutputStream(int index) {
 
 	// NOTE: overwtie to file output
 	if (Stretcher::outputChannels != outInfo->maxOutputChannels) {
+        PrepareOutputBuffer(outInfo->maxOutputChannels, defBlockSize, reserveBuffer);
 		Stretcher::outputChannels = outInfo->maxOutputChannels;
-		Stretcher::reallocOutBuffer = true;
 	}
 
     return er == paNoError;

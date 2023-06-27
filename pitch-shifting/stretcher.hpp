@@ -1,3 +1,4 @@
+#pragma once
 #include "rubberband/RubberBandStretcher.h"
 #include <iostream>
 #pragma comment(lib, "sndfile.lib")
@@ -20,6 +21,7 @@
 using std::cerr;
 using std::endl;
 using RubberBand::RubberBandStretcher;
+using RubberBand::RingBuffer;
 
 namespace PitchShifting {
 
@@ -54,14 +56,16 @@ public:
         int sampleRate, int channels, int format);
 
     // basically given ctor params to fullfill RubberBandStretcher
-    void Create(size_t sampleRate, size_t channels, int options, double timeRatio, double pitchScale);
+    void Create(size_t sampleRate, int channels, int options, double timeRatio, double pitchScale);
     // works on input file, ignore in realtime mode
     void ExpectedInputDuration(size_t samples);
     void MaxProcessSize(size_t samples);
     double FormantScale(double scale = 0.0);
 
     // compare to stretcher::channels and block size for buffer allocation/reallocation
-    void PrepareBuffer();
+    void PrepareInputBuffer(int channels, int blocks, size_t reserves);
+    void PrepareOutputBuffer(int channels, int blocks, size_t reserves);
+
     // study loaded input file for stretcher (to pitch analyzing?), ignore in realtime mode 
     void StudyInputSound(/*int blockSize*/);
     // in realtime mode, process padding at begin to avoid fade in and get drop delay for output buffer
@@ -173,11 +177,7 @@ private:
     int inputChannels;
     int outputChannels;
     int defBlockSize = 1024;
-    // buffer reallocation depends on channels and block size, reallocation via input/output changes
-    bool reallocInBuffer;
-    bool reallocOutBuffer;
-    // temperary flag for cbuf dispose, align to inputChannels
-    int cbufLen;
+
     // buffer for rubberband calculation
     float **cbuf;
     // buffer for input audio frame
@@ -185,19 +185,22 @@ private:
     // buffer for output audio frame
     float *obuf;
 
-    // TODO: considering ring buffer performance and maintainess 
-    //       try RingBuffer?
+    // NOTE: due to use portaudio stream callback, buffer will be 1-dim within multi channels
+    //       likes buffer[channels * block size]
+    RingBuffer<float> *inBuffer;
+    RingBuffer<float> *outBuffer;
+    // addtional buffer size, almost 1s or assign by sample rate
+    size_t reserveBuffer = 32768;
+    // just want to see the buffer usage
+    bool debugBuffer = true;
+    // TODO: poor perf in windows env allocate/reallocate memory
 	std::mutex inMutex;
-	std::deque<float*> inChunks;
-	// DEBUG: buffer for streamming
-	//float vbuf[65536 * 16] = { 0 };
-	// can be a pointer to vbuf
-	//size_t vbufRead = 0;
-	//size_t vbufWrite = 0;
+	//std::deque<float*> inChunks;
 	std::mutex outMutex;
-	int chunkWrite = 0;
-	std::deque<float*> outChunks;
-	int outDelayFrames = 24000;
+	//int chunkWrite = 0;
+	//std::deque<float*> outChunks;
+    // delay for available blocks to audio output, about 0.25s (mac can reduce to 4096 frames including rubberband dropped)
+	int outDelayFrames = 12000;
 
     int dropFrames;
     bool ignoreClipping;
