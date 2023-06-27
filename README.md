@@ -41,6 +41,26 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
 |- ...
 ```
 
+# rubberband dependencies(for windoiws env) #
+
+I believe it would be much easier in unix-like env... 
+
+Got unresolve issues if force to add related paths to vcxproj properties and preprocessor definitions
+TODO: may go checkout meson.build for these dependencies in visual studio in windows?
+
+- fftw3
+  - download precompiled dlls, use visual studio native command prompt generate .lib files
+  - `> lib.exe /def:libfftw3-3.def`
+  - `> lib.exe /machine:x64 /def:libfftw3-3.def`
+  - vDSP vs FFTW (11 yrs ago) https://gist.github.com/admsyn/3452792
+
+- sleef(dft)
+  - build from source code, for windows -> cygwin
+  - https://sleef.org/dft.xhtml
+
+- intel IPP
+  - integrated in oneapi https://www.intel.com/content/www/us/en/docs/ipp/developer-guide-oneapi/2022-2/finding-intel-ipp-on-your-system.html
+
 # py version #
 
 - locate at py folder, using python v3.10.12 for dev env on my macos m1

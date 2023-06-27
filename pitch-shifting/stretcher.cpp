@@ -686,7 +686,7 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
 		std::lock_guard<std::mutex> lock(inMutex);
         // TODO: temerary ignore in my macbook prevent debugger console freeze
 #ifdef _WIN32
-		cerr << "!!! Read in chunks " << inChunks.size() << endl;
+		// cerr << "!!! Read in chunks " << inChunks.size() << endl;
 #endif
 		// if (inChunks.size() > 0) {
 		// 	auto chunk = inChunks.front();
