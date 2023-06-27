@@ -508,7 +508,7 @@ int main(int argc, char **argv)
     }
 	inputFrames = sampleRate * 10; //DEBUG: 3s?
 	// 1: mymacout48k, 14: mywinout44k, 24: mywinout48k
-	hasAudio == sther->SetOutputStream(1);
+	hasAudio = sther->SetOutputStream(1);
     if (hasAudio == false) {
         return 1;
     }

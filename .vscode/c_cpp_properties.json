@@ -5,17 +5,14 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/../rubberband",
-                "/opt/homebrew/include",
-                "/Library/Developer/CommandLineTools/usr/include/c++/v1",
-                "/Library/Developer/CommandLineTools/usr/lib/clang/13.0.0/include",
-                "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include"
+                "/opt/homebrew/include"
             ],
             "defines": [],
             "macFrameworkPath": [
                 "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks"
             ],
             "compilerPath": "/usr/bin/clang",
-            "cStandard": "c17",
+            "cStandard": "c11",
             "cppStandard": "c++17",
             "intelliSenseMode": "macos-clang-arm64"
         }

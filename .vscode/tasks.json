@@ -7,6 +7,8 @@
             "args": [
                 "-fcolor-diagnostics",
                 "-fansi-escape-codes",
+                "-std=c++17",
+                "-stdlib=libc++",
                 "-g", // set for include debugging info
                 "${file}",
                 "${fileDirname}/stretcher.cpp",
