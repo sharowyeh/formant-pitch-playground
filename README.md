@@ -86,6 +86,13 @@ TODO: may go checkout meson.build for these dependencies in visual studio in win
   - `#ifdef __arm64__`
   - `#include "TargetConditionals.h"` then use macro TARGET_xxx from obj-c example
 
+- dylib linker and dev tools
+  - https://stackoverflow.com/questions/52981210/linking-with-dylib-library-from-the-command-line-using-clang
+  - otool
+  - install_name_tool
+  - for @rpath, @executable_path and etc...
+  - `-Wl,-rpath,@executable_path`
+
 # bela.io board #
 
 for Bela dev board, can refer to NE10 library for data manipulation

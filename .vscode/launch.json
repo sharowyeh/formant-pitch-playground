@@ -21,7 +21,7 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "externalConsole": false,
+            "externalConsole": false, // set for ncurses to get user input from console
             "MIMode": "lldb",
             "miDebuggerArgs": "--arch=arm64",
             "preLaunchTask": "C/C++: clang++ build active file"

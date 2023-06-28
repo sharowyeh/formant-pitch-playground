@@ -6,6 +6,8 @@
 # binary, intermediate or symbol files from llvm on my M1 mac
 **/*.dSYM
 **/*.out
+**/*.dylib
+**/*.wav
 
 # python venv
 .venv/

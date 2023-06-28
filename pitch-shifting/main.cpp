@@ -60,6 +60,12 @@ using RubberBand::gettimeofday;
 using std::cerr;
 using std::endl;
 
+// for user input event to break rubberband process while loop
+// TODO: since the original rubberband example using iostream to output debugging info,
+//       it's not ideal way to integrate with curses c library for user input to stop while loop,
+//       do something else... 
+//#include <ncurses.h>
+
 double tempo_convert(const char *str)
 {
     char *d = strchr((char *)str, ':');
@@ -552,9 +558,12 @@ int main(int argc, char **argv)
     size_t countIn = 0, countOut = 0;
 
     bool successful = false;
-
     int thisBlockSize;
-
+    
+    // initscr(); // initialize ncurses to get user input
+    // noecho();
+    // nodelay(stdscr, TRUE);
+    
     while (!successful) { // we may have to repeat with a modified
                           // gain, if clipping occurs
         successful = true;
@@ -618,7 +627,8 @@ int main(int argc, char **argv)
             
             // exit while loop if all input frames are processed
             if (frame >= inputFrames) {
-				cerr << "=== Stop reading inputs ===" << endl;
+			//if (getch() == 'q') {
+            	cerr << "=== Stop reading inputs ===" << endl;
                 // TODO: original design is frame + blockSize >= total input frames
                 reading = false;
             }
@@ -645,11 +655,7 @@ int main(int argc, char **argv)
 
     } // while (successful)
 
-    // delete[] ibuf;
-    // for (size_t c = 0; c < channels; ++c) {
-    //     delete[] cbuf[c];
-    // }
-    // delete[] cbuf;
+    //endwin(); // cleanup ncurses
 
     sther->CloseFiles();
 
