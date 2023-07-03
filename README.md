@@ -43,6 +43,19 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
 
 # rubberband dependencies(for windoiws env) #
 
+UPDATE: using vcpkg to compiling rubberband with its dependencies in meson
+
+- git pull vcpkg source from github
+- add PATH with C:\path\to\vcpkg\vcpkg.exe
+- install pkgconf in vcpkg, `>vcpkg install --triplet x64-windows pkgconf`
+- meson.build add `project`'s `default options` with `'pkg_config_path=/path/to/vcpkg/installed/x64-windows/lib/pkgconfig'`
+- set PKG_CONFIG=C:\path\to\vcpkg\installed\x64-windows\tools\pkgconf\pkgconf.exe
+- install fftw, libsamplerate, etc via vcpkg
+- `meson setup build --wipe -Dprefix=C:\path\to\cwd -Dextra_build_dirs=C:\path\to\vcpkg\installed\x64-windows\include`
+- refer to
+  - https://github.com/mesonbuild/meson/issues/3500#issuecomment-1236199562
+  - https://github.com/mesonbuild/meson/issues/3500#issuecomment-1236378795
+
 I believe it would be much easier in unix-like env... 
 
 Got unresolve issues if force to add related paths to vcxproj properties and preprocessor definitions
