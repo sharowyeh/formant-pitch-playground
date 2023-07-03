@@ -79,8 +79,8 @@
     <LibraryPath>$(ProjectDir)..\libsndfile-1.2.0\win32\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(ProjectDir)..\..\rubberband;$(ProjectDir)..\libsndfile-1.2.0\win64\include;$(ProjectDir)..\..\portaudio\include;$(IncludePath)</IncludePath>
-    <LibraryPath>$(ProjectDir)..\libsndfile-1.2.0\win64\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(ProjectDir)..\..\rubberband;$(ProjectDir)..\libsndfile-1.2.0\win64\include;$(ProjectDir)..\..\portaudio\include;$(ProjectDir)..\..\vcpkg\installed\x64-windows\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)..\..\rubberband\build-x64;$(ProjectDir)..\libsndfile-1.2.0\win64\lib;$(ProjectDir)..\..\vcpkg\installed\x64-windows\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>$(ProjectDir)..\..\rubberband;$(ProjectDir)..\libsndfile-1.2.0\win64\include;$(ProjectDir)..\..\portaudio\include;$(IncludePath)</IncludePath>
@@ -152,9 +152,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\portaudio\build\msvc\portaudio.vcxproj">
       <Project>{0a18a071-125e-442f-aff7-a3f68abecf99}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\..\rubberband\otherbuilds\rubberband-library.vcxproj">
-      <Project>{020ceb11-ef4e-400e-971d-a35db69d7cf9}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

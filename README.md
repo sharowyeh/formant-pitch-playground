@@ -50,16 +50,21 @@ UPDATE: using vcpkg to compiling rubberband with its dependencies in meson
 - install pkgconf in vcpkg, `>vcpkg install --triplet x64-windows pkgconf`
 - meson.build add `project`'s `default options` with `'pkg_config_path=/path/to/vcpkg/installed/x64-windows/lib/pkgconfig'`
 - set PKG_CONFIG=C:\path\to\vcpkg\installed\x64-windows\tools\pkgconf\pkgconf.exe
-- install fftw, libsamplerate, etc via vcpkg
-- `meson setup build --wipe -Dprefix=C:\path\to\cwd -Dextra_build_dirs=C:\path\to\vcpkg\installed\x64-windows\include`
 - refer to
   - https://github.com/mesonbuild/meson/issues/3500#issuecomment-1236199562
   - https://github.com/mesonbuild/meson/issues/3500#issuecomment-1236378795
+- install fftw, libsamplerate, etc via vcpkg
+- `meson setup build --wipe -Dprefix=C:\path\to\cwd -Dextra_build_dirs=C:\path\to\vcpkg\installed\x64-windows\include -Dextra_lib_dirs=C:\Users\minamo\projects\vcpkg\installed\x64-windows\lib`
+- `-Dfft=fftw -Dresampler=libsamplerate`
+- meson.build has been set NOMINMAX to ignore windows.h default min/max macro, so need stl lib for min/max(i choose rubberband\RubberBandStretcher.h)
+  - `#ifdef _MSC_VER`
+    `#include <algorithm>`
+    `#endif`
 
 I believe it would be much easier in unix-like env... 
 
-Got unresolve issues if force to add related paths to vcxproj properties and preprocessor definitions
-TODO: may go checkout meson.build for these dependencies in visual studio in windows?
+(not recommonded) download and compile manually as below:
+(add related paths to vcxproj properties and preprocessor definitions, got unresolve issues)
 
 - fftw3
   - download precompiled dlls, use visual studio native command prompt generate .lib files
