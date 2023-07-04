@@ -23,6 +23,8 @@
 
 // source code from rubberband repo, modify references for alt project
 
+#pragma comment(lib, "rubberband.lib")
+
 #include <iostream>
 #include <cmath>
 #include <time.h>
@@ -35,8 +37,13 @@
 // for rubberband profiler to dump signal process information,
 // get rubberband source code from github within same system installed version
 // and add the folder to project include path
+#ifdef _MSC_VER
+// sysutils.h defined extern methods for win32, but meson/ninja not compile cpp correctly with cl.exe, so import cpp here again
+#include "src/common/sysutils.cpp"
+#else
 #include "src/common/sysutils.h"
 #include "src/common/Profiler.h"
+#endif
 
 #ifdef _MSC_VER
 // for win32, original getopt source code uses unsecure c runtime, workaround applied
@@ -229,12 +236,29 @@ void print_usage(bool fullHelp, bool isR3, std::string myName) {
     }
 }
 
+bool checkNumuric(char *arr, int *out) {
+	// like apple isnumeric()
+	try
+	{
+		auto val = std::stoi(arr);
+		if (out) {
+			*out = val;
+		}
+		return true;
+	}
+	catch (const std::exception&)
+	{
+	}
+	return false;
+}
+
 int main(int argc, char **argv)
 {
     double ratio = 1.0;
     double duration = 0.0;
     double pitchshift = 0.0;
     double frequencyshift = 1.0;
+	double formantshift = 0.0; //semitones
     int debug = 3;
     bool realtime = false;
     bool precisiongiven = false;
@@ -295,7 +319,7 @@ int main(int argc, char **argv)
             { "realtime",      0, 0, 'R' },
             { "loose",         0, 0, 'L' },
             { "precise",       0, 0, 'P' },
-            { "formant",       0, 0, 'F' },
+            { "formant",       1, 0, 'F' },
             { "no-threads",    0, 0, '0' },
             { "no-transients", 0, 0, '1' },
             { "no-lamination", 0, 0, '.' },
@@ -342,7 +366,7 @@ int main(int argc, char **argv)
         case 'R': realtime = true; break;
         case 'L': precisiongiven = true; break;
         case 'P': precisiongiven = true; break;
-        case 'F': formant = true; break;
+		case 'F': formantshift = atof(optarg); formant = true; break;
         case '0': threading = 1; break;
         case '@': threading = 2; break;
         case '1': transients = 0/*NoTransients*/; crispchanged = true; break;
@@ -381,32 +405,32 @@ int main(int argc, char **argv)
         realtime = true;
     }
     
-    char* fileName;
-    char* fileNameOut;
+    char* inAudioParam;
+    char* outAudioParam;
 
     // at least given input wav file
     if (argc - optind >= 1) {
-        fileName = strdup(argv[optind]);
+		inAudioParam = strdup(argv[optind]);
     }
     else {
-        fileName = (char*)malloc(sizeof(char) * 16);
+		inAudioParam = (char*)malloc(sizeof(char) * 16);
 #ifdef _WIN32
-        strcpy_s(fileName, 16, "test.wav");
+        strcpy_s(inAudioParam, 16, "test.wav");
 #else
-        strcpy(fileName, "test.wav");
+        strcpy(inAudioParam, "test.wav");
 #endif
         argc++;
     }
     // given both input and output wav files
     if (argc - optind >= 2) {
-        fileNameOut = strdup(argv[optind + 1]);
+		outAudioParam = strdup(argv[optind + 1]);
     }
     else {
-        fileNameOut = (char*)malloc(sizeof(char) * 16);
+		outAudioParam = (char*)malloc(sizeof(char) * 16);
 #ifdef _WIN32
-        strcpy_s(fileNameOut, 16, "test_out.wav");
+        strcpy_s(outAudioParam, 16, "test_out.wav");
 #else
-        strcpy(fileNameOut, "test.out.wav");
+        strcpy(outAudioParam, "test.out.wav");
 #endif
         argc++;
     }
@@ -440,7 +464,7 @@ int main(int argc, char **argv)
     }
 
     // TODO: we can start our stretcher here
-    const int defBlockSize = 2048;
+    const int defBlockSize = 1024;
     PitchShifting::Stretcher *sther = new PitchShifting::Stretcher(defBlockSize, 1);
 
     int typewin = (shortwin) ? 1 : (longwin) ? 2 : 0/*standard*/;
@@ -476,46 +500,59 @@ int main(int argc, char **argv)
     sther->LoadFreqMap((pitchToFreq ? pitchMapFile : freqMapFile), pitchToFreq);
 
     // move input/output file name right aftering getopt resolver
-    /*char *fileName = strdup(argv[optind++]);
-    char *fileNameOut = strdup(argv[optind++]);*/
+    /*char *inAudioParam = strdup(argv[optind++]);
+    char *outAudioParam = strdup(argv[optind++]);*/
 
     std::string extIn, extOut;
-    for (int i = strlen(fileName); i > 0; ) {
-        if (fileName[--i] == '.') {
-            extIn = fileName + i + 1;
+    for (int i = strlen(inAudioParam); i > 0; ) {
+        if (inAudioParam[--i] == '.') {
+            extIn = inAudioParam + i + 1;
             break;
         }
     }
-    for (int i = strlen(fileNameOut); i > 0; ) {
-        if (fileNameOut[--i] == '.') {
-            extOut = fileNameOut + i + 1;
+    for (int i = strlen(outAudioParam); i > 0; ) {
+        if (outAudioParam[--i] == '.') {
+            extOut = outAudioParam + i + 1;
             break;
         }
     }
+	
+	// 0/2: mymacin48k, 8: mywinin44k, 39: mywinin48k
+	int inDevIndex = 8;
+	// 1: mymacout48k, 12: mywinout44k, 22: mywinout48k
+	int outDevIndex = 12;
+	bool inUseDev = checkNumuric(inAudioParam, &inDevIndex);
+	bool outUseDev = checkNumuric(outAudioParam, &outDevIndex);
+
+	sther->ListAudioDevices();
 
     int sampleRate = 0;
     int channels = 0;
     int format = 0;
     int64_t inputFrames = 0;
-    // check input/output audio file or device
-    bool hasAudio = true;
-    //hasAudio = sther->LoadInputFile(fileName, &sampleRate, &channels, &format, &inputFrames, ratio, duration);  
-    if (hasAudio == false) {
-        return 1;
-    }
-    // TODO: force align to input file, or use GetFileFormat()
-    //sther->SetOutputFile(fileNameOut, sampleRate, 2, format);
 
-	sther->ListAudioDevices();
-	// 0/2: mymacin48k, 8: mywinin44k, 39: mywinin48k
-	hasAudio = sther->SetInputStream(2, &sampleRate, &channels);
-    if (hasAudio == false) {
+    // check input/output audio file or device
+    bool checkAudio = true;
+	if (inUseDev) {
+		checkAudio = sther->SetInputStream(inDevIndex, &sampleRate, &channels);
+	}
+	else {
+		checkAudio = sther->LoadInputFile(inAudioParam, &sampleRate, &channels, &format, &inputFrames, ratio, duration);
+	}
+    if (checkAudio == false) {
         return 1;
     }
-	inputFrames = sampleRate * 10; //DEBUG: 3s?
-	// 1: mymacout48k, 14: mywinout44k, 24: mywinout48k
-	hasAudio = sther->SetOutputStream(1);
-    if (hasAudio == false) {
+
+	//DEBUG: TODO: currently use input frames for realtime duration
+	inputFrames = sampleRate * 3600; // 1hr 
+
+	if (outUseDev) {
+		checkAudio = sther->SetOutputStream(outDevIndex);
+	}
+	else {
+		checkAudio = sther->SetOutputFile(outAudioParam, sampleRate, 2, format);
+	}
+    if (checkAudio == false) {
         return 1;
     }
 
@@ -536,8 +573,9 @@ int main(int argc, char **argv)
     }
 
     // NOTE: formant adjustment only works to r3
-    //TODO: make option
-    double formantshift = 3.0; // semitones
+	if (formantshift != 0.0) {
+		cerr << "Formant shift semitones: " << formantshift << endl;
+	}
     double formantFactor = pow(2.0, formantshift / 12.0);
 
     // default formant scale = 1.0 / freq(pitch)shift if formant enabled
@@ -662,8 +700,8 @@ int main(int argc, char **argv)
 	sther->WaitStream();
 	sther->StopOutputStream();
 
-    free(fileName);
-    free(fileNameOut);
+    free(inAudioParam);
+    free(outAudioParam);
 
     if (!quiet) {
 
@@ -692,7 +730,7 @@ int main(int argc, char **argv)
              << int64_t(countOut/sec) << endl;
     }
 
-    RubberBand::Profiler::dump();
+    //RubberBand::Profiler::dump();
     
     delete sther;
 

@@ -199,8 +199,10 @@ private:
 	std::mutex outMutex;
 	//int chunkWrite = 0;
 	//std::deque<float*> outChunks;
-    // delay for available blocks to audio output, about 0.25s (mac can reduce to 4096 frames including rubberband dropped)
-	int outDelayFrames = 12000;
+    // delay for available blocks to audio output, about 0.25s:
+	// Mac default vDSP quite performanced that can reduce to 4096 frames including rubberband dropped
+	// Windows env using fftw and libsamplerate also can recude less than 2000 frames
+	int outDelayFrames = 2000;
 
     int dropFrames;
     bool ignoreClipping;
