@@ -699,13 +699,14 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
 		// else {
 		// 	return false; // TODO: need return define to caller to stop while-loop for reading frames
 		// }
-	}
 
-    if (inputChannels * count > inBuffer->getReadSpace()) {
-        return false; // buffer not enough for process
-    } else {
-        inBuffer->read(ibuf, inputChannels * count);
-    }
+		if (inputChannels * count > inBuffer->getReadSpace()) {
+			return false; // buffer not enough for process
+		}
+		else {
+			inBuffer->read(ibuf, inputChannels * count);
+		}
+	}
 
     for (int c = 0; c < inputChannels; ++c) {
         for (int i = 0; i < count; ++i) {
@@ -845,21 +846,6 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
             }
         }
 
-        int writable = outBuffer->getWriteSpace();
-        if (outputChannels * blockSize > writable) {
-            cerr << "output buffer is full" << endl;
-        } else {
-            if (debugBuffer) {
-                cerr << "output buffer usage " << (int)((1.f - (float)writable / outBuffer->getSize()) * 100.f) << "%" << endl;
-            }
-            outBuffer->write(obuf, outputChannels * blockSize);
-        }
-
-		// output file before later variable changes for chunks
-		if (sndfileOut) {
-			sf_writef_float(sndfileOut, obuf, blockSize);
-		}
-
 		{
 			std::lock_guard<std::mutex> lock(outMutex);
 			// cerr << "!!! Write out chunks " << outChunks.size() << ", chunkWrite " << chunkWrite << endl;
@@ -883,7 +869,24 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
 			// 		currSize -= currSize;
 			// 	}
 			// }
+
+			int writable = outBuffer->getWriteSpace();
+			if (outputChannels * blockSize > writable) {
+				cerr << "output buffer is full" << endl;
+			}
+			else {
+				if (debugBuffer) {
+					cerr << "output buffer usage " << (int)((1.f - (float)writable / outBuffer->getSize()) * 100.f) << "%" << endl;
+				}
+				outBuffer->write(obuf, outputChannels * blockSize);
+			}
 		}
+
+		// output file before later variable changes for chunks
+		if (sndfileOut) {
+			sf_writef_float(sndfileOut, obuf, blockSize);
+		}
+
     } // while (avail)
 
     if (clipping) {
