@@ -38,10 +38,14 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
 |- formant-pitch-playground/libsndfile-1.2.0/win64/include
 |- rubberband/
 |- rubberband/otherbuilds
+|- vcpkg/installed/x64-windows/
+|- vcpkg/installed/x64-windows/include
+|- vcpkg/installed/x64-windows/lib
 |- ...
 ```
 
 # rubberband dependencies(for windoiws env) #
+For windows env, rubberband must be rebuild with 3rd party FFT for better performence results
 
 UPDATE: using vcpkg to compiling rubberband with its dependencies in meson
 
@@ -54,12 +58,14 @@ UPDATE: using vcpkg to compiling rubberband with its dependencies in meson
   - https://github.com/mesonbuild/meson/issues/3500#issuecomment-1236199562
   - https://github.com/mesonbuild/meson/issues/3500#issuecomment-1236378795
 - install fftw, libsamplerate, etc via vcpkg
-- `meson setup build --wipe -Dprefix=C:\path\to\cwd -Dextra_build_dirs=C:\path\to\vcpkg\installed\x64-windows\include -Dextra_lib_dirs=C:\Users\minamo\projects\vcpkg\installed\x64-windows\lib`
+- `meson setup build --wipe -Dprefix=C:\path\to\cwd -Dextra_build_dirs=C:\path\to\vcpkg\installed\x64-windows\include -Dextra_lib_dirs=C:\path\to\vcpkg\installed\x64-windows\lib`
 - `-Dfft=fftw -Dresampler=libsamplerate`
 - meson.build has been set NOMINMAX to ignore windows.h default min/max macro, so need stl lib for min/max(i choose rubberband\RubberBandStretcher.h)
-  - `#ifdef _MSC_VER`
-    `#include <algorithm>`
-    `#endif`
+  ```
+  #ifdef _MSC_VER
+  #include <algorithm>
+  #endif
+  ```
 
 I believe it would be much easier in unix-like env... 
 
