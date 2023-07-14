@@ -237,19 +237,19 @@ void print_usage(bool fullHelp, bool isR3, std::string myName) {
 }
 
 bool checkNumuric(char *arr, int *out) {
-	// like apple isnumeric()
-	try
-	{
-		auto val = std::stoi(arr);
-		if (out) {
-			*out = val;
-		}
-		return true;
-	}
-	catch (const std::exception&)
-	{
-	}
-	return false;
+    // like apple isnumeric()
+    try
+    {
+        auto val = std::stoi(arr);
+        if (out) {
+            *out = val;
+        }
+        return true;
+    }
+    catch (const std::exception&)
+    {
+    }
+    return false;
 }
 
 int main(int argc, char **argv)
@@ -258,7 +258,7 @@ int main(int argc, char **argv)
     double duration = 0.0;
     double pitchshift = 0.0;
     double frequencyshift = 1.0;
-	double formantshift = 0.0; //semitones
+    double formantshift = 0.0; //semitones
     int debug = 3;
     bool realtime = false;
     bool precisiongiven = false;
@@ -278,6 +278,7 @@ int main(int argc, char **argv)
     bool fullHelp = false;
     bool version = false;
     bool quiet = false;
+    bool listdev = false;
 
     bool haveRatio = false;
 
@@ -303,7 +304,7 @@ int main(int argc, char **argv)
     
     while (1) {
         int optionIndex = 0;
-
+        // full, has_arg, p_flag, val
         static struct option longOpts[] = {
             { "help",          0, 0, 'h' },
             { "full-help",     0, 0, 'H' },
@@ -339,6 +340,7 @@ int main(int argc, char **argv)
             { "ignore-clipping", 0, 0, 'i' },
             { "fast",          0, 0, '2' },
             { "fine",          0, 0, '3' },
+            { "list-device" ,  0, 0, 'l' },
             { 0, 0, 0, 0 }
         };
 
@@ -366,7 +368,7 @@ int main(int argc, char **argv)
         case 'R': realtime = true; break;
         case 'L': precisiongiven = true; break;
         case 'P': precisiongiven = true; break;
-		case 'F': formantshift = atof(optarg); formant = true; break;
+        case 'F': formantshift = atof(optarg); formant = true; break;
         case '0': threading = 1; break;
         case '@': threading = 2; break;
         case '1': transients = 0/*NoTransients*/; crispchanged = true; break;
@@ -387,6 +389,7 @@ int main(int argc, char **argv)
         case 'i': ignoreClipping = true; break;
         case '2': faster = true; break;
         case '3': finer = true; break;
+        case 'l': listdev = true; break;
         default:  help = true; break;
         }
     }
@@ -410,10 +413,10 @@ int main(int argc, char **argv)
 
     // at least given input wav file
     if (argc - optind >= 1) {
-		inAudioParam = strdup(argv[optind]);
+        inAudioParam = strdup(argv[optind]);
     }
     else {
-		inAudioParam = (char*)malloc(sizeof(char) * 16);
+        inAudioParam = (char*)malloc(sizeof(char) * 16);
 #ifdef _WIN32
         strcpy_s(inAudioParam, 16, "test.wav");
 #else
@@ -423,10 +426,10 @@ int main(int argc, char **argv)
     }
     // given both input and output wav files
     if (argc - optind >= 2) {
-		outAudioParam = strdup(argv[optind + 1]);
+        outAudioParam = strdup(argv[optind + 1]);
     }
     else {
-		outAudioParam = (char*)malloc(sizeof(char) * 16);
+        outAudioParam = (char*)malloc(sizeof(char) * 16);
 #ifdef _WIN32
         strcpy_s(outAudioParam, 16, "test_out.wav");
 #else
@@ -503,28 +506,23 @@ int main(int argc, char **argv)
     /*char *inAudioParam = strdup(argv[optind++]);
     char *outAudioParam = strdup(argv[optind++]);*/
 
+    bool inUseFile = false;
+    bool outUseFile = false;
     std::string extIn, extOut;
     for (int i = strlen(inAudioParam); i > 0; ) {
         if (inAudioParam[--i] == '.') {
             extIn = inAudioParam + i + 1;
+            inUseFile = true;
             break;
         }
     }
     for (int i = strlen(outAudioParam); i > 0; ) {
         if (outAudioParam[--i] == '.') {
             extOut = outAudioParam + i + 1;
+            outUseFile = true;
             break;
         }
     }
-	
-	// 0/2: mymacin48k, 8: mywinin44k, 39: mywinin48k
-	int inDevIndex = 8;
-	// 1: mymacout48k, 12: mywinout44k, 22: mywinout48k
-	int outDevIndex = 12;
-	bool inUseDev = checkNumuric(inAudioParam, &inDevIndex);
-	bool outUseDev = checkNumuric(outAudioParam, &outDevIndex);
-
-	sther->ListAudioDevices();
 
     int sampleRate = 0;
     int channels = 0;
@@ -533,28 +531,46 @@ int main(int argc, char **argv)
 
     // check input/output audio file or device
     bool checkAudio = true;
-	if (inUseDev) {
-		checkAudio = sther->SetInputStream(inDevIndex, &sampleRate, &channels);
-	}
-	else {
-		checkAudio = sther->LoadInputFile(inAudioParam, &sampleRate, &channels, &format, &inputFrames, ratio, duration);
-	}
+    if (inUseFile) {
+        checkAudio = sther->LoadInputFile(inAudioParam, &sampleRate, &channels, &format, &inputFrames, ratio, duration);
+    }
+    if (outUseFile) {
+        checkAudio = sther->SetOutputFile(outAudioParam, sampleRate, 2, format);
+    }
     if (checkAudio == false) {
+        cerr << "Set input/output to files but invalid" << endl;
+        delete sther;
         return 1;
     }
 
-	//DEBUG: TODO: currently use input frames for realtime duration
-	inputFrames = sampleRate * 3600; // 1hr 
+    sther->ListAudioDevices();
+    // list audio device only
+    if (listdev) {
+        delete sther;
+        return 0;
+    }
 
-	if (outUseDev) {
-		checkAudio = sther->SetOutputStream(outDevIndex);
-	}
-	else {
-		checkAudio = sther->SetOutputFile(outAudioParam, sampleRate, 2, format);
-	}
+    // 0/2: mymacin48k, 9: mywinin44k(mme), 43: mywinin48k
+    int inDevIndex = 43;
+    // 1: mymacout48k, 15: mywinout44k(mme), 26/28/34: mywinout48k(wdm/aux/vcable)
+    int outDevIndex = 26;
+    bool inUseDev = checkNumuric(inAudioParam, &inDevIndex);
+    bool outUseDev = checkNumuric(outAudioParam, &outDevIndex);
+
+    if (inUseDev) {
+        checkAudio = sther->SetInputStream(inDevIndex, &sampleRate, &channels);
+    }
+    if (outUseDev) {
+        checkAudio = sther->SetOutputStream(outDevIndex);
+    }
     if (checkAudio == false) {
+        cerr << "Set input/output audio device failed" << endl;
+        delete sther;
         return 1;
     }
+
+    //DEBUG: TODO: currently use input frames for realtime duration
+    inputFrames = sampleRate * 3600 * 3; // 3hr for long duration test 
 
     RubberBandStretcher::Options options = 0;
     options = sther->SetOptions(finer, realtime, typewin, smoothing, formant,
@@ -573,9 +589,9 @@ int main(int argc, char **argv)
     }
 
     // NOTE: formant adjustment only works to r3
-	if (formantshift != 0.0) {
-		cerr << "Formant shift semitones: " << formantshift << endl;
-	}
+    if (formantshift != 0.0) {
+        cerr << "Formant shift semitones: " << formantshift << endl;
+    }
     double formantFactor = pow(2.0, formantshift / 12.0);
 
     // default formant scale = 1.0 / freq(pitch)shift if formant enabled
@@ -613,8 +629,8 @@ int main(int argc, char **argv)
         sther->FormantScale(formantScale);
         sther->SetIgnoreClipping(ignoreClipping);
 
-		sther->StartInputStream();
-		sther->StartOutputStream();
+        sther->StartInputStream();
+        sther->StartOutputStream();
 
         if (!realtime) {
             sther->StudyInputSound();
@@ -644,7 +660,7 @@ int main(int argc, char **argv)
             sther->ApplyFreqMap(countIn, &thisBlockSize);
 
             // TODO: given block size parameter if frequency map is enabled
-			// TODO: change input function to device instead of file
+            // TODO: change input function to device instead of file
             bool isFinal = sther->ProcessInputSound(&frame, &countIn);
 
             // TODO: may check result if clipping occurred to successful variable
@@ -665,8 +681,8 @@ int main(int argc, char **argv)
             
             // exit while loop if all input frames are processed
             if (frame >= inputFrames) {
-			//if (getch() == 'q') {
-            	cerr << "=== Stop reading inputs ===" << endl;
+            //if (getch() == 'q') {
+                cerr << "=== Stop reading inputs ===" << endl;
                 // TODO: original design is frame + blockSize >= total input frames
                 reading = false;
             }
@@ -697,8 +713,9 @@ int main(int argc, char **argv)
 
     sther->CloseFiles();
 
-	sther->WaitStream();
-	sther->StopOutputStream();
+    sther->WaitStream();
+    sther->StopInputStream();
+    sther->StopOutputStream();
 
     free(inAudioParam);
     free(outAudioParam);

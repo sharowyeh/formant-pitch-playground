@@ -91,28 +91,28 @@ public:
     void ListAudioDevices();
     PaStreamCallback *debugCallback;
 
-	PaStream *inStream;
+    PaStream *inStream;
     PaStream *outStream;
 
-	bool SetInputStream(int index, int *pSampleRate = nullptr, int *pChannels = nullptr);
-	void StartInputStream() { if (inStream) Pa_StartStream(inStream); }
-	void StopInputStream() { if (inStream) Pa_StopStream(inStream); }
+    bool SetInputStream(int index, int *pSampleRate = nullptr, int *pChannels = nullptr);
+    void StartInputStream() { if (inStream) Pa_StartStream(inStream); }
+    void StopInputStream() { if (inStream) Pa_StopStream(inStream); }
     bool SetOutputStream(int index);
-	void StartOutputStream() { if (outStream) Pa_StartStream(outStream); };
-	void StopOutputStream() { if (outStream) Pa_StopStream(outStream); };
-	// TODO: do something in alter thread
-	void WaitStream(int timeout = 2000) { if (inStream || outStream) Pa_Sleep(timeout); };
+    void StartOutputStream() { if (outStream) Pa_StartStream(outStream); };
+    void StopOutputStream() { if (outStream) Pa_StopStream(outStream); };
+    // TODO: do something in alter thread
+    void WaitStream(int timeout = 2000) { if (inStream || outStream) Pa_Sleep(timeout); };
 
 protected:
     // make sure deconstruction will be done
     void dispose();
 
-	static int inputAudioCallback(
-		const void* inBuffer, void* outBuffer,
-		unsigned long frames,
-		const PaStreamCallbackTimeInfo* timeInfo,
-		PaStreamCallbackFlags flags,
-		void *data);
+    static int inputAudioCallback(
+        const void* inBuffer, void* outBuffer,
+        unsigned long frames,
+        const PaStreamCallbackTimeInfo* timeInfo,
+        PaStreamCallbackFlags flags,
+        void *data);
     static int outputAudioCallback(
         const void* inBuffer, void* outBuffer,
         unsigned long frames,
@@ -178,6 +178,11 @@ private:
     int outputChannels;
     int defBlockSize = 1024;
 
+    // for own input device, i need to check input amplitude
+    float debugInMaxVal;
+    // input gain, value for pow(10.f, db / 10.f)
+    float inGain;
+
     // buffer for rubberband calculation
     float **cbuf;
     // buffer for input audio frame
@@ -194,15 +199,15 @@ private:
     // just want to see the buffer usage
     bool debugBuffer = true;
     // TODO: poor perf in windows env allocate/reallocate memory
-	std::mutex inMutex;
-	//std::deque<float*> inChunks;
-	std::mutex outMutex;
-	//int chunkWrite = 0;
-	//std::deque<float*> outChunks;
+    std::mutex inMutex;
+    //std::deque<float*> inChunks;
+    std::mutex outMutex;
+    //int chunkWrite = 0;
+    //std::deque<float*> outChunks;
     // delay for available blocks to audio output, about 0.25s:
-	// Mac default vDSP quite performanced that can reduce to 4096 frames including rubberband dropped
-	// Windows env using fftw and libsamplerate also can recude less than 2000 frames
-	int outDelayFrames = 2000;
+    // Mac default vDSP quite performanced that can reduce to 4096 frames including rubberband dropped
+    // Windows env using fftw and libsamplerate also can recude less than 2000 frames
+    int outDelayFrames = 2000;
 
     int dropFrames;
     bool ignoreClipping;

@@ -16,9 +16,9 @@ namespace PitchShifting {
 Stretcher::Stretcher(int defBlockSize, int debugLevel) {
     // for port audio initialization
     Pa_Initialize();
-	inStream = nullptr;
+    inStream = nullptr;
     outStream = nullptr;
-	//chunkWrite = 0;
+    //chunkWrite = 0;
 
     debug = debugLevel;
     quiet = (debugLevel < 2);
@@ -54,11 +54,15 @@ Stretcher::Stretcher(int defBlockSize, int debugLevel) {
 
     inputChannels = 0;
     outputChannels = 0;
-	Stretcher::defBlockSize = defBlockSize;
+    Stretcher::defBlockSize = defBlockSize;
     
     cbuf = nullptr;
     ibuf = nullptr;
     obuf = nullptr;
+
+    debugInMaxVal = 0.f;
+    inGain = pow(10.f, 0.f / 10.f); // TODO: make option
+
     // we need channels, blocksize to initialize ringbuffer(2dim)
     inBuffer = nullptr;
     outBuffer = nullptr;
@@ -671,68 +675,80 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
     int blockSize = Stretcher::defBlockSize;
 
     int count = -1;
-	// separate by file or by stream
+    // separate by file or by stream
     if (sndfileIn) {
-		if ((count = sf_readf_float(sndfileIn, ibuf, blockSize)) < 0) {
-			return false;
-		}
+        if ((count = sf_readf_float(sndfileIn, ibuf, blockSize)) < 0) {
+            return false;
+        }
         if (sfinfoIn.channels * count > inBuffer->getWriteSpace()) {
             cerr << "input buffer is full" << endl;
         } else {
             inBuffer->write(ibuf, sfinfoIn.channels * count);
         }
-	}
-	if (inStream) {
-		std::lock_guard<std::mutex> lock(inMutex);
+    }
+    if (inStream) {
+        std::lock_guard<std::mutex> lock(inMutex);
         // TODO: temerary ignore in my macbook prevent debugger console freeze
 #ifdef _WIN32
-		// cerr << "!!! Read in chunks " << inChunks.size() << endl;
+        // cerr << "!!! Read in chunks " << inChunks.size() << endl;
 #endif
-		// if (inChunks.size() > 0) {
-		// 	auto chunk = inChunks.front();
-		// 	memcpy(ibuf, chunk, sizeof(float) * blockSize * inputChannels);
-		// 	inChunks.pop_front();
-		 	count = blockSize;
-		// 	delete chunk;
-		// 	// TODO: find a way to drop frame if can not handle
-		// }
-		// else {
-		// 	return false; // TODO: need return define to caller to stop while-loop for reading frames
-		// }
+        // if (inChunks.size() > 0) {
+        //     auto chunk = inChunks.front();
+        //     memcpy(ibuf, chunk, sizeof(float) * blockSize * inputChannels);
+        //     inChunks.pop_front();
+            count = blockSize;
+        //     delete chunk;
+        //     // TODO: find a way to drop frame if can not handle
+        // }
+        // else {
+        //     return false; // TODO: need return define to caller to stop while-loop for reading frames
+        // }
 
-		if (inputChannels * count > inBuffer->getReadSpace()) {
-			return false; // buffer not enough for process
-		}
-		else {
-			inBuffer->read(ibuf, inputChannels * count);
-		}
-	}
+        if (inputChannels * count > inBuffer->getReadSpace()) {
+            return false; // buffer not enough for process
+        }
+        else {
+            inBuffer->read(ibuf, inputChannels * count);
+        }
+    }
 
+    bool debugMax = false;
+    float value;
     for (int c = 0; c < inputChannels; ++c) {
         for (int i = 0; i < count; ++i) {
-            cbuf[c][i] = ibuf[i * inputChannels + c];
+            value = inGain * ibuf[i * inputChannels + c];
+            if (value > 1.f) value = 1.f;
+            if (value < -1.f) value = -1.f;
+            cbuf[c][i] = value;
+            if (debugBuffer && debugInMaxVal < ibuf[i * inputChannels + c]) {
+                debugInMaxVal = ibuf[i * inputChannels + c];
+                debugMax = true;
+            }
         }
+    }
+    if (debugMax) {
+        cerr << "=== Input max value " << debugInMaxVal << ", gained " << debugInMaxVal * inGain << endl;
     }
 
     // NOTE: countIn will be the same with total frames from input
     *pCountIn += count;
 
     // separate by file or by stream
-	bool isFinal = false;
-	if (sndfileIn) {
-		isFinal = (*pFrame + blockSize >= sfinfoIn.frames);
+    bool isFinal = false;
+    if (sndfileIn) {
+        isFinal = (*pFrame + blockSize >= sfinfoIn.frames);
 
-		if (count == 0) {
-			if (debug > 1) {
-				cerr << "at frame " << *pFrame << " of " << sfinfoIn.frames << ", read count = " << count << ": marking final as true" << endl;
-			}
-			isFinal = true;
-		}
+        if (count == 0) {
+            if (debug > 1) {
+                cerr << "at frame " << *pFrame << " of " << sfinfoIn.frames << ", read count = " << count << ": marking final as true" << endl;
+            }
+            isFinal = true;
+        }
 
-		if (debug > 2) {
-			cerr << "in = " << *pCountIn << ", count = " << count << ", bs = " << blockSize << ", frame = " << *pFrame << ", frames = " << sfinfoIn.frames << ", final = " << isFinal << endl;
-		}
-	}
+        if (debug > 2) {
+            cerr << "in = " << *pCountIn << ", count = " << count << ", bs = " << blockSize << ", frame = " << *pFrame << ", frames = " << sfinfoIn.frames << ", final = " << isFinal << endl;
+        }
+    }
 
     pts->process(cbuf, count, isFinal);
     // increase frame number to caller
@@ -846,46 +862,46 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
             }
         }
 
-		{
-			std::lock_guard<std::mutex> lock(outMutex);
-			// cerr << "!!! Write out chunks " << outChunks.size() << ", chunkWrite " << chunkWrite << endl;
-			// int currSize = blockSize * outputChannels;
-			// auto obufPos = obuf;
-			// while (currSize > 0) {
-			// 	if (chunkWrite == 0 || outChunks.size() == 0) {
-			// 		auto chunk = new float[defBlockSize * outputChannels];
-			// 		outChunks.push_back(chunk);
-			// 	}
-			// 	int restSize = defBlockSize * outputChannels - chunkWrite;
-			// 	if (currSize > restSize) {
-			// 		memcpy(&outChunks.back()[chunkWrite], obufPos, sizeof(float) * restSize);
-			// 		currSize -= restSize;
-			// 		obufPos += restSize;
-			// 		chunkWrite = 0;
-			// 	}
-			// 	else {
-			// 		memcpy(&outChunks.back()[chunkWrite], obufPos, sizeof(float) * currSize);
-			// 		chunkWrite += currSize;
-			// 		currSize -= currSize;
-			// 	}
-			// }
+        {
+            std::lock_guard<std::mutex> lock(outMutex);
+            // cerr << "!!! Write out chunks " << outChunks.size() << ", chunkWrite " << chunkWrite << endl;
+            // int currSize = blockSize * outputChannels;
+            // auto obufPos = obuf;
+            // while (currSize > 0) {
+            //     if (chunkWrite == 0 || outChunks.size() == 0) {
+            //         auto chunk = new float[defBlockSize * outputChannels];
+            //         outChunks.push_back(chunk);
+            //     }
+            //     int restSize = defBlockSize * outputChannels - chunkWrite;
+            //     if (currSize > restSize) {
+            //         memcpy(&outChunks.back()[chunkWrite], obufPos, sizeof(float) * restSize);
+            //         currSize -= restSize;
+            //         obufPos += restSize;
+            //         chunkWrite = 0;
+            //     }
+            //     else {
+            //         memcpy(&outChunks.back()[chunkWrite], obufPos, sizeof(float) * currSize);
+            //         chunkWrite += currSize;
+            //         currSize -= currSize;
+            //     }
+            // }
 
-			int writable = outBuffer->getWriteSpace();
-			if (outputChannels * blockSize > writable) {
-				cerr << "output buffer is full" << endl;
-			}
-			else {
-				if (debugBuffer) {
-					cerr << "output buffer usage " << (int)((1.f - (float)writable / outBuffer->getSize()) * 100.f) << "%" << endl;
-				}
-				outBuffer->write(obuf, outputChannels * blockSize);
-			}
-		}
+            int writable = outBuffer->getWriteSpace();
+            if (outputChannels * blockSize > writable) {
+                cerr << "output buffer is full" << endl;
+            }
+            else {
+                if (debugBuffer) {
+                    cerr << "output buffer usage " << (int)((1.f - (float)writable / outBuffer->getSize()) * 100.f) << "%" << endl;
+                }
+                outBuffer->write(obuf, outputChannels * blockSize);
+            }
+        }
 
-		// output file before later variable changes for chunks
-		if (sndfileOut) {
-			sf_writef_float(sndfileOut, obuf, blockSize);
-		}
+        // output file before later variable changes for chunks
+        if (sndfileOut) {
+            sf_writef_float(sndfileOut, obuf, blockSize);
+        }
 
     } // while (avail)
 
@@ -927,42 +943,52 @@ Stretcher::CloseFiles() {
 
 void
 Stretcher::ListAudioDevices() {
-    // list all
-	int num_devices = 0;
-	PaErrorCode err = paNoError;
-	num_devices = Pa_GetDeviceCount();
-	if (num_devices < 0) {
-		err = (PaErrorCode)num_devices;
-		cerr << "ERROR: Pa_CountDevices returned " << err << endl;
-		return;
-	}
+    // list host apis
+    int num_apis = 0;
+    num_apis = Pa_GetHostApiCount();
+    const char* apis[16] = { 0 };
+    for (int i = 0; i < num_apis; i++) {
+        auto api_info = Pa_GetHostApiInfo(i);
+        apis[i] = api_info->name;
+        cerr << "API " << i << " type:" << api_info->type << " name:" << api_info->name << " idef:" << api_info->defaultInputDevice << " odef:" << api_info->defaultOutputDevice << endl;
+    }
 
-	const PaDeviceInfo* dev_info;
-	for (int i = 0; i < num_devices; i++) {
-		dev_info = Pa_GetDeviceInfo(i);
-		cerr << "DEV " << i << " " << dev_info->name << " input ch:" << dev_info->maxInputChannels << " output ch:" << dev_info->maxOutputChannels;
-		cerr << " samplerate:" << dev_info->defaultSampleRate << endl;
-	}
+    // list all
+    int num_devices = 0;
+    PaErrorCode err = paNoError;
+    num_devices = Pa_GetDeviceCount();
+    if (num_devices < 0) {
+        err = (PaErrorCode)num_devices;
+        cerr << "ERROR: Pa_CountDevices returned " << err << endl;
+        return;
+    }
+
+    const PaDeviceInfo* dev_info;
+    for (int i = 0; i < num_devices; i++) {
+        dev_info = Pa_GetDeviceInfo(i);
+        cerr << "DEV " << i << " " << dev_info->name << " api:" << apis[dev_info->hostApi] << " ich:" << dev_info->maxInputChannels << " och:" << dev_info->maxOutputChannels;
+        cerr << " samplerate:" << dev_info->defaultSampleRate << endl;
+    }
 }
 
 int
 Stretcher::inputAudioCallback(
-	const void* inBuffer, void* outBuffer,
-	unsigned long frames,
-	const PaStreamCallbackTimeInfo* timeInfo,
-	PaStreamCallbackFlags flags,
-	void *data
-	) {
-	Stretcher *pst = (Stretcher *)data;
+    const void* inBuffer, void* outBuffer,
+    unsigned long frames,
+    const PaStreamCallbackTimeInfo* timeInfo,
+    PaStreamCallbackFlags flags,
+    void *data
+    ) {
+    Stretcher *pst = (Stretcher *)data;
 
-	float *in = (float*)inBuffer;
-	// TODO: may quick check levels to drop frames prevent too many input can't process immediately
-	{
-		std::lock_guard<std::mutex> lock(pst->inMutex);
-		// cerr << "!!! Write in chunks " << pst->inChunks.size() << endl;
-		// auto tmp = new float[frames * pst->inputChannels];
-		// memcpy(tmp, in, sizeof(float) * frames * pst->inputChannels);
-		// pst->inChunks.push_back(tmp);
+    float *in = (float*)inBuffer;
+    // TODO: may quick check levels to drop frames prevent too many input can't process immediately
+    {
+        std::lock_guard<std::mutex> lock(pst->inMutex);
+        // cerr << "!!! Write in chunks " << pst->inChunks.size() << endl;
+        // auto tmp = new float[frames * pst->inputChannels];
+        // memcpy(tmp, in, sizeof(float) * frames * pst->inputChannels);
+        // pst->inChunks.push_back(tmp);
         int writable = pst->inBuffer->getWriteSpace();
         if (pst->inputChannels * frames > writable) {
             cerr << "input buffer is full" << endl;
@@ -974,7 +1000,7 @@ Stretcher::inputAudioCallback(
         }
     }
 
-	return paContinue;
+    return paContinue;
 }
 
 int
@@ -988,22 +1014,22 @@ Stretcher::outputAudioCallback(
     Stretcher *pst = (Stretcher *)data;
 
     //float *in = (float*)inBuffer;
-	float *out = (float*)outBuffer;
+    float *out = (float*)outBuffer;
 
-	{
-		std::lock_guard<std::mutex> lock(pst->outMutex);
+    {
+        std::lock_guard<std::mutex> lock(pst->outMutex);
 
-		// cerr << "!!! Read out chunks " << pst->outChunks.size() << endl;
-		// if (pst->outDelayFrames > 0) {
-		// 	if (pst->outChunks.size() > pst->outDelayFrames / pst->defBlockSize)
-		// 		pst->outDelayFrames = 0;
-		// }
-		// if (pst->outDelayFrames <= 0 && pst->outChunks.size() > 0) {
-		// 	auto chunk = pst->outChunks.front();
-		// 	memcpy(out, chunk, sizeof(float) * frames * pst->outputChannels);
-		// 	pst->outChunks.pop_front();
-		// 	delete chunk;
-		// }
+        // cerr << "!!! Read out chunks " << pst->outChunks.size() << endl;
+        // if (pst->outDelayFrames > 0) {
+        //     if (pst->outChunks.size() > pst->outDelayFrames / pst->defBlockSize)
+        //         pst->outDelayFrames = 0;
+        // }
+        // if (pst->outDelayFrames <= 0 && pst->outChunks.size() > 0) {
+        //     auto chunk = pst->outChunks.front();
+        //     memcpy(out, chunk, sizeof(float) * frames * pst->outputChannels);
+        //     pst->outChunks.pop_front();
+        //     delete chunk;
+        // }
         if (pst->outDelayFrames > 0) {
             pst->outDelayFrames -= frames;
             if (pst->outDelayFrames < 0) {
@@ -1016,50 +1042,50 @@ Stretcher::outputAudioCallback(
         } else {
             pst->outBuffer->read(out, pst->outputChannels * frames);
         }
-	}
+    }
 
-	return paContinue;
+    return paContinue;
 }
 
 bool
 Stretcher::SetInputStream(int index, int *pSampleRate, int *pChannels) {
 
-	const PaDeviceInfo* inInfo = Pa_GetDeviceInfo(index);
-	if (!inInfo) {
-		cerr << "No device found at " << index << endl;
-		return false;
-	}
-	cerr << "IN " << index << " " << inInfo->name << " input ch:" << inInfo->maxInputChannels << " output ch:" << inInfo->maxOutputChannels;
-	cerr << " samplerate:" << inInfo->defaultSampleRate << " input delay:" << inInfo->defaultLowInputLatency << endl;
+    const PaDeviceInfo* inInfo = Pa_GetDeviceInfo(index);
+    if (!inInfo) {
+        cerr << "No device found at " << index << endl;
+        return false;
+    }
+    cerr << "IN " << index << " " << inInfo->name << " api:" << Pa_GetHostApiInfo(inInfo->hostApi)->name << " ich:" << inInfo->maxInputChannels << " och:" << inInfo->maxOutputChannels;
+    cerr << " samplerate:" << inInfo->defaultSampleRate << " input delay:" << inInfo->defaultLowInputLatency << endl;
 
-	PaStreamParameters inParam;
-	memset(&inParam, 0, sizeof(inParam));
-	inParam.channelCount = inInfo->maxInputChannels;
-	inParam.device = index;
-	inParam.sampleFormat = paFloat32;
-	inParam.suggestedLatency = inInfo->defaultLowInputLatency;
-	inParam.hostApiSpecificStreamInfo = NULL;
+    PaStreamParameters inParam;
+    memset(&inParam, 0, sizeof(inParam));
+    inParam.channelCount = inInfo->maxInputChannels;
+    inParam.device = index;
+    inParam.sampleFormat = paFloat32;
+    inParam.suggestedLatency = inInfo->defaultLowInputLatency;
+    inParam.hostApiSpecificStreamInfo = NULL;
 
-	PaError er = Pa_OpenStream(
-		&inStream,
-		&inParam,
-		nullptr,
-		inInfo->defaultSampleRate,
-		Stretcher::defBlockSize,
-		paNoFlag,
-		inputAudioCallback,
-		(void *)this
-	);
-	cerr << "Open input stream result " << er << endl;
+    PaError er = Pa_OpenStream(
+        &inStream,
+        &inParam,
+        nullptr,
+        inInfo->defaultSampleRate,
+        Stretcher::defBlockSize,
+        paNoFlag,
+        inputAudioCallback,
+        (void *)this
+    );
+    cerr << "Open input stream result " << er << endl;
 
-	// NOTE: overwrite to file input
-	if (Stretcher::inputChannels != inInfo->maxInputChannels) {
+    // NOTE: overwrite to file input
+    if (Stretcher::inputChannels != inInfo->maxInputChannels) {
         PrepareInputBuffer(inInfo->maxInputChannels, defBlockSize, reserveBuffer);
-		Stretcher::inputChannels = inInfo->maxInputChannels;
-	}
+        Stretcher::inputChannels = inInfo->maxInputChannels;
+    }
 
-	if (pSampleRate) *pSampleRate = inInfo->defaultSampleRate;
-	if (pChannels) *pChannels = inInfo->maxInputChannels;
+    if (pSampleRate) *pSampleRate = inInfo->defaultSampleRate;
+    if (pChannels) *pChannels = inInfo->maxInputChannels;
 
     return er == paNoError;
 }
@@ -1067,39 +1093,39 @@ Stretcher::SetInputStream(int index, int *pSampleRate, int *pChannels) {
 bool
 Stretcher::SetOutputStream(int index) {
 
-	const PaDeviceInfo* outInfo = Pa_GetDeviceInfo(index);
-	if (!outInfo) {
-		cerr << "No device found at " << index << endl;
-		return false;
-	}
-    cerr << "OUT " << index << " " << outInfo->name << " input ch:" << outInfo->maxInputChannels << " output ch:" << outInfo->maxOutputChannels;
-	cerr << " samplerate:" << outInfo->defaultSampleRate << " output delay:" << outInfo->defaultLowOutputLatency << endl;
-	
-	PaStreamParameters outParam;
+    const PaDeviceInfo* outInfo = Pa_GetDeviceInfo(index);
+    if (!outInfo) {
+        cerr << "No device found at " << index << endl;
+        return false;
+    }
+    cerr << "OUT " << index << " " << outInfo->name << " api:" << Pa_GetHostApiInfo(outInfo->hostApi)->name << " ich:" << outInfo->maxInputChannels << " och:" << outInfo->maxOutputChannels;
+    cerr << " samplerate:" << outInfo->defaultSampleRate << " output delay:" << outInfo->defaultLowOutputLatency << endl;
+    
+    PaStreamParameters outParam;
     memset(&outParam, 0, sizeof(outParam));
-	outParam.channelCount = outInfo->maxOutputChannels;
-	outParam.device = index;
-	outParam.sampleFormat = paFloat32;
-	outParam.suggestedLatency = outInfo->defaultLowOutputLatency;
-	outParam.hostApiSpecificStreamInfo = NULL;
+    outParam.channelCount = outInfo->maxOutputChannels;
+    outParam.device = index;
+    outParam.sampleFormat = paFloat32;
+    outParam.suggestedLatency = outInfo->defaultLowOutputLatency;
+    outParam.hostApiSpecificStreamInfo = NULL;
 
     PaError er = Pa_OpenStream(
-		&outStream,
-	    nullptr,
-		&outParam,
-		outInfo->defaultSampleRate,
-		Stretcher::defBlockSize,
-		paNoFlag,
-		outputAudioCallback,
-		(void *)this
-	);
-	cerr << "Open output stream result " << er << endl;
+        &outStream,
+        nullptr,
+        &outParam,
+        outInfo->defaultSampleRate,
+        Stretcher::defBlockSize,
+        paNoFlag,
+        outputAudioCallback,
+        (void *)this
+    );
+    cerr << "Open output stream result " << er << endl;
 
-	// NOTE: overwtie to file output
-	if (Stretcher::outputChannels != outInfo->maxOutputChannels) {
+    // NOTE: overwtie to file output
+    if (Stretcher::outputChannels != outInfo->maxOutputChannels) {
         PrepareOutputBuffer(outInfo->maxOutputChannels, defBlockSize, reserveBuffer);
-		Stretcher::outputChannels = outInfo->maxOutputChannels;
-	}
+        Stretcher::outputChannels = outInfo->maxOutputChannels;
+    }
 
     return er == paNoError;
 }
