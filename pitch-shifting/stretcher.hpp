@@ -75,8 +75,10 @@ public:
     // adjust rubberband pitch scale per process block, countIn will align to freqMap key and increase freqMap iterator
     void ApplyFreqMap(size_t countIn,/* int blockSize,*/ int *pAdjustedBlockSize = nullptr);
     
+    // set input gain to audio signal, default 1.f
+    void SetInputGain(float val) { inGain = val; };
     // set output gain for clipping manipulation, default 1.f
-    void SetOutputGain(float val) { gain = val; };
+    void SetOutputGain(float val) { outGain = val; };
     // process given block of sound file, NOTE: high relavent to sndfile seeking position
     // return input frames have done for reading
     // TODO: w/o file input, we may not able to check isFinal or not for rubberband stretcher
@@ -180,7 +182,8 @@ private:
 
     // for own input device, i need to check input amplitude
     float debugInMaxVal;
-    // input gain, value for pow(10.f, db / 10.f)
+    // gain <-> ratio, http://www.sengpielaudio.com/calculator-FactorRatioLevelDecibel.htm
+    // input power factor, default 1.f, (seems) use voltage ratio for audio float signal, pow(10.f, db / 20.f)?
     float inGain;
 
     // buffer for rubberband calculation
@@ -198,6 +201,8 @@ private:
     size_t reserveBuffer = 32768;
     // just want to see the buffer usage
     bool debugBuffer = true;
+    int debugBufTimerIn = 0;
+    int debugBufTimerOut = 0;
     // TODO: poor perf in windows env allocate/reallocate memory
     std::mutex inMutex;
     //std::deque<float*> inChunks;
@@ -207,12 +212,12 @@ private:
     // delay for available blocks to audio output, about 0.25s:
     // Mac default vDSP quite performanced that can reduce to 4096 frames including rubberband dropped
     // Windows env using fftw and libsamplerate also can recude less than 2000 frames
-    int outDelayFrames = 2000;
+	int outDelayFrames = 2000;
 
     int dropFrames;
     bool ignoreClipping;
     // decrease gain to avoid clipping for output process, default 1.f
-    float gain;
+    float outGain;
     // below minimal gain will mean dropping
     const float minGain = 0.75f;
 };

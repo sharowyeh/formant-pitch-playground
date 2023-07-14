@@ -61,7 +61,7 @@ Stretcher::Stretcher(int defBlockSize, int debugLevel) {
     obuf = nullptr;
 
     debugInMaxVal = 0.f;
-    inGain = pow(10.f, 0.f / 10.f); // TODO: make option
+    inGain = 1.f;
 
     // we need channels, blocksize to initialize ringbuffer(2dim)
     inBuffer = nullptr;
@@ -69,7 +69,7 @@ Stretcher::Stretcher(int defBlockSize, int debugLevel) {
 
     dropFrames = 0;
     ignoreClipping = true;
-    gain = 1.f;
+    outGain = 1.f;
 }
 
 Stretcher::~Stretcher() {
@@ -709,6 +709,11 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
         }
         else {
             inBuffer->read(ibuf, inputChannels * count);
+            // debug
+            if (debugBuffer && debugBufTimerIn != (*pCountIn / 48000)) {
+                debugBufTimerIn = (*pCountIn / 48000);/*a samplerate*/
+                cerr << "input buffer usage " << (int)(((float)inBuffer->getReadSpace() / inBuffer->getSize()) * 100.f) << "%" << endl;
+            }
         }
     }
 
@@ -839,14 +844,14 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
         float value;
         for (size_t c = 0; c < inputChannels; ++c) {
             for (int i = 0; i < blockSize; ++i) {
-                value = gain * cbuf[c][i];
+                value = outGain * cbuf[c][i];
                 if (ignoreClipping) { // i.e. just clamp, don't bail out
                     if (value > 1.f) value = 1.f;
                     if (value < -1.f) value = -1.f;
                 } else {
                     if (value >= 1.f || value < -1.f) {
                         clipping = true;
-                        gain = (0.999f / fabsf(cbuf[c][i]));
+                        outGain = (0.999f / fabsf(cbuf[c][i]));
                     }
                 }
                 cbuf[c][i] = value;
@@ -891,7 +896,8 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
                 cerr << "output buffer is full" << endl;
             }
             else {
-                if (debugBuffer) {
+                if (debugBuffer && debugBufTimerOut != (*pCountOut / 48000)) {
+                    debugBufTimerOut = (*pCountOut / 48000);/*a samplerate*/
                     cerr << "output buffer usage " << (int)((1.f - (float)writable / outBuffer->getSize()) * 100.f) << "%" << endl;
                 }
                 outBuffer->write(obuf, outputChannels * blockSize);
@@ -906,17 +912,17 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
     } // while (avail)
 
     if (clipping) {
-        if (gain < minGain) {
+        if (outGain < minGain) {
             cerr << "NOTE: Clipping detected at output sample "
                     << *pCountOut << ", but not reducing gain as it would "
                     << "mean dropping below minimum " << minGain << endl;
-            gain = minGain;
+            outGain = minGain;
             ignoreClipping = true;
         } else {
             if (!quiet) {
                 cerr << "NOTE: Clipping detected at output sample "
                         << *pCountOut << ", restarting with "
-                        << "reduced gain of " << gain
+                        << "reduced gain of " << outGain
                         << " (supply --ignore-clipping to avoid this)"
                         << endl;
             }
@@ -993,9 +999,10 @@ Stretcher::inputAudioCallback(
         if (pst->inputChannels * frames > writable) {
             cerr << "input buffer is full" << endl;
         } else {
-            if (pst->debugBuffer) {
+            // move to process function
+            /*if (pst->debugBuffer) {
                 cerr << "input buffer usage " << (int)((1.f - (float)writable / pst->inBuffer->getSize()) * 100.f) << "%" << endl;
-            }
+            }*/
             pst->inBuffer->write(in, pst->inputChannels * frames);
         }
     }

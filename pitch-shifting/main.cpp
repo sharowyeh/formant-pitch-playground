@@ -279,6 +279,7 @@ int main(int argc, char **argv)
     bool version = false;
     bool quiet = false;
     bool listdev = false;
+    double inputgaindb = 0.0; // dB
 
     bool haveRatio = false;
 
@@ -340,7 +341,8 @@ int main(int argc, char **argv)
             { "ignore-clipping", 0, 0, 'i' },
             { "fast",          0, 0, '2' },
             { "fine",          0, 0, '3' },
-            { "list-device" ,  0, 0, 'l' },
+            { "list-device",   0, 0, 'l' },
+            { "input-gain",    1, 0, 'g' },
             { 0, 0, 0, 0 }
         };
 
@@ -390,6 +392,7 @@ int main(int argc, char **argv)
         case '2': faster = true; break;
         case '3': finer = true; break;
         case 'l': listdev = true; break;
+        case 'g': inputgaindb = atof(optarg); break;
         default:  help = true; break;
         }
     }
@@ -603,6 +606,14 @@ int main(int argc, char **argv)
         cerr << "Formant factor " << formantFactor << " results ratio " << formantScale << endl;
     }
     
+    // apply gain, voltage level for audio signal will be pow(10.f, db / 20.f)
+    if (inputgaindb != 0.0) {
+        cerr << "Input gain db: " << inputgaindb << endl;
+        double inputgainlv = pow(10.f, inputgaindb / 20.f);
+        cerr << "Input gain level: " << inputgainlv << endl;
+        sther->SetInputGain(inputgainlv);
+    }
+
 #ifdef _WIN32
     RubberBand::
 #endif
