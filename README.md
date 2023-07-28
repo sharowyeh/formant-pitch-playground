@@ -47,10 +47,11 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
 # rubberband dependencies(for windoiws env) #
 For windows env, rubberband must be rebuild with 3rd party FFT for better performence results
 
-UPDATE: using vcpkg to compiling rubberband with its dependencies in meson
+UPDATE: using vcpkg to compiling rubberband with its dependencies in meson, DO NOT use rubberband-library visual studio project
 
 - git pull vcpkg source from github
-- add PATH with C:\path\to\vcpkg\vcpkg.exe
+- add PATH with C:\path\to\vcpkg\vcpkg.exe (for cli/script usage)
+- add VCPKG_ROOT with C:\path\to\vcpkg (for visual studio/cmake project dependency)
 - install pkgconf in vcpkg, `>vcpkg install --triplet x64-windows pkgconf`
 - meson.build add `project`'s `default options` with `'pkg_config_path=/path/to/vcpkg/installed/x64-windows/lib/pkgconfig'`
 - set PKG_CONFIG=C:\path\to\vcpkg\installed\x64-windows\tools\pkgconf\pkgconf.exe
@@ -58,7 +59,7 @@ UPDATE: using vcpkg to compiling rubberband with its dependencies in meson
   - https://github.com/mesonbuild/meson/issues/3500#issuecomment-1236199562
   - https://github.com/mesonbuild/meson/issues/3500#issuecomment-1236378795
 - install fftw, libsamplerate, etc via vcpkg
-- `meson setup build --wipe -Dprefix=C:\path\to\cwd -Dextra_build_dirs=C:\path\to\vcpkg\installed\x64-windows\include -Dextra_lib_dirs=C:\path\to\vcpkg\installed\x64-windows\lib`
+- `meson setup build --wipe -Dprefix=C:\path\to\cwd -Dextra_include_dirs=C:\path\to\vcpkg\installed\x64-windows\include -Dextra_lib_dirs=C:\path\to\vcpkg\installed\x64-windows\lib`
 - `-Dfft=fftw -Dresampler=libsamplerate`
 - meson.build has been set NOMINMAX to ignore windows.h default min/max macro, so need stl lib for min/max(i choose rubberband\RubberBandStretcher.h)
   ```

@@ -3,6 +3,11 @@
 ::: set pkg config path to pkgconf.exe and add to meson.build project options
 cd /d ..\rubberband
 
+::: check vcpkg and pkgconfig related environment for meson.build usage
+SET PKG_CONFIG=C:\Users\minamo\projects\vcpkg\installed\x64-windows\tools\pkgconf\pkgconf.exe
+ECHO %PKG_CONFIG%
+ECHO %VCPKG_ROOT%
+
 ::: x64 release
 mkdir build-x64-rel
 
