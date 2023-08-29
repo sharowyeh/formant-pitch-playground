@@ -44,6 +44,18 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
 |- ...
 ```
 
+# rubberband r3 stretcher trace #
+stretcher -> process() given buf[c][i] 2d array
+- check if inputs need resampling, and loop samples length to write m_channelData(cd) -> inbuf 
+  - pre-resampling given inputs if smaller pitch scale(higher pitch) and option set quality
+    - (higher pitch will have less sampling than origin)
+  - loop inputs with index to copy to m_channelAssembly.input[c]
+  - write to ring buffer m_channelData[c]->inbuf
+- consume()
+  - 
+stretcher -> available() -> retrieve()
+-
+
 # rubberband dependencies(for windoiws env) #
 For windows env, rubberband must be rebuild with 3rd party FFT for better performence results
 
