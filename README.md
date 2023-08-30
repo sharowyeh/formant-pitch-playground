@@ -45,16 +45,39 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
 ```
 
 # rubberband r3 stretcher trace #
-stretcher -> process() given buf[c][i] 2d array
+## stretcher -> process() given buf[c][i] 2d array ##
 - check if inputs need resampling, and loop samples length to write m_channelData(cd) -> inbuf 
   - pre-resampling given inputs if smaller pitch scale(higher pitch) and option set quality
     - (higher pitch will have less sampling than origin)
   - loop inputs with index to copy to m_channelAssembly.input[c]
   - write to ring buffer m_channelData[c]->inbuf
 - consume()
-  - 
-stretcher -> available() -> retrieve()
--
+  - apply post-resampling given in hop size to calculate out hop size via calculateSingle()
+  - until m_channelData cd->inbuf is enough for in hop fft window size via getWindowSourceSize()
+  - analysisChannel()
+    - read cd->inbuf to cd->windowSource
+    - multiply unwindowed input frames to each cd->scales time domain data, except classification scale
+      - TODO: check configuration for longest/shortest/classification fft sizes
+      - graph for scales time domain dataset with longest fft size:
+      ```
+      FFT scales:                                               longest FFT size
+      scale1       |----------------------|--------------|--------------|
+                                 scale size        offset1
+      scale2       |------------------------------|----------|----------|
+                                            scale size    offset2
+      windowSource |----------|----|------------------------------------>
+                 buf*   +offset2  +offset1
+      scale timeDomain:
+      data1                        |---------------------|
+      (multiply buf+offset1)
+      data2                   |------------------------------|
+      (multiply buf+offset2)
+      ```
+    - classification scale uses given inhop, and own cd->readahead(begins from buf+offset+inhop) instead of scale timeDomain data
+    - TODO: fft forward readahead and each scales timeDomain data
+ 
+## stretcher -> available() -> retrieve() ##
+- TODO:
 
 # rubberband dependencies(for windoiws env) #
 For windows env, rubberband must be rebuild with 3rd party FFT for better performence results
