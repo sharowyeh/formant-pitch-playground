@@ -74,7 +74,26 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
       (multiply buf+offset2)
       ```
     - classification scale uses given inhop, and own cd->readahead(begins from buf+offset+inhop) instead of scale timeDomain data
-    - TODO: fft forward readahead and each scales timeDomain data
+    - fft shift, fft forward (to scale's timeDomain or classify readahead) and catesian-polar convert to each scales
+      - fft shift swaps second half and first half time domain signals data
+      - given time domain data calls fft real to complex to get real (scale->rea) and imaginary (scale->imag) data
+      - convert output cartesian(x,y) data to polar(r,theta) data
+      - normalize scale->mag by fft size
+    - analyseFormant() and adjustFormant()
+      - given normalized scale->mag calls fft complex to real to get cd->formant->cepstra
+        - cepstram: normalize freq domain(likes dB and reduce noise), than apply ifft transform
+        - eg, Mei-Frequency Cepstrum for speech recognition
+        - http://disp.ee.ntu.edu.tw/meeting/%E5%86%BC%E9%81%94/termPaper_R98942120.pdf
+      - cepstra cutoff by sample rate / 650, and normalize by fft size
+      - given cepstra data calls fft read to complex to get output formant->envelope and formant->spara
+      - exp then sqrt first half of formant->envelope (bin count, = fft size/2+1)
+      - calculate target factor to each scales by formant fft size, target factor= formant fft size/scale fft size
+      - apply formant by calculated source factor, source factor= target factor/formant scale (note pitch shifting also affact formant scale)
+      - TODO: check configuration.fftBandLimits
+      - based on cd->scales->fft size is band fft size, get source and target envelope value at(i * factor)
+      - multiply magnitue scale->mag by ratio (source/target envelope)
+    - use classification scale to get bin segmentation, copy next to cd->classification
+    - TODO:
  
 ## stretcher -> available() -> retrieve() ##
 - TODO:
