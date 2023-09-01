@@ -38,6 +38,8 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
 |- formant-pitch-playground/libsndfile-1.2.0/win64/include
 |- rubberband/
 |- rubberband/otherbuilds
+|- portaudio/
+|- portaudio/build/msvc
 |- vcpkg/installed/x64-windows/
 |- vcpkg/installed/x64-windows/include
 |- vcpkg/installed/x64-windows/lib
@@ -92,8 +94,10 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
       - TODO: check configuration.fftBandLimits
       - based on cd->scales->fft size is band fft size, get source and target envelope value at(i * factor)
       - multiply magnitue scale->mag by ratio (source/target envelope)
-    - use classification scale to get bin segmentation, copy next to cd->classification
-    - TODO:
+    - use classification scale to get bin segmentation, copy next cd->classification to cd->scale->mag
+      - also record to cd->prevSegmentation, current and the next
+    - update all fft parameters to guide via updateGuidance TODO: check guide class
+    - analysis channel end
  
 ## stretcher -> available() -> retrieve() ##
 - TODO:
