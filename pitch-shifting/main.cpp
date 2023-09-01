@@ -23,9 +23,10 @@
 
 // source code from rubberband repo, modify references for alt project
 
-// to get to know further rubberband source code details
-// still wonder to participate with rubberband-library visual studio project
-#if NDEBUG
+// to get to know further rubberband source code details, wonder to participate with 
+// rubberband-library visual studio project, but still has more glitch than meson build
+// (should be the compiler options issue...)
+#if _DEBUG
 // build by meson
 #pragma comment(lib, "rubberband.lib")
 #else
