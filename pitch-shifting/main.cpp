@@ -82,6 +82,9 @@ using std::endl;
 //       do something else... 
 //#include <ncurses.h>
 
+// for opengl gui
+#include "wmain.hpp"
+
 double tempo_convert(const char *str)
 {
     char *d = strchr((char *)str, ':');
@@ -263,6 +266,8 @@ bool checkNumuric(char *arr, int *out) {
 
 int main(int argc, char **argv)
 {
+    glfwWindowMain();
+
     double ratio = 1.0;
     double duration = 0.0;
     double pitchshift = 0.0;
