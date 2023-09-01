@@ -1,3 +1,4 @@
+ECHO ensure using x64 or x86_64 command prompt for visual studio to run this batch in windows environment
 ::: place rubberband repo at the parent directory
 ::: make sure required deps installed via vcpkg
 ::: set pkg config path to pkgconf.exe and add to meson.build project options
