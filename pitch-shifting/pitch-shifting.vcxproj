@@ -44,6 +44,7 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
+    <SpectreMitigation>false</SpectreMitigation>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -51,6 +52,7 @@
     <PlatformToolset>v141</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
+    <SpectreMitigation>false</SpectreMitigation>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -80,7 +82,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>$(ProjectDir)..\..\rubberband;$(ProjectDir)..\libsndfile-1.2.0\win64\include;$(ProjectDir)..\..\portaudio\include;$(VCPKG_ROOT)\installed\x64-windows\include;$(IncludePath)</IncludePath>
-    <LibraryPath>$(ProjectDir)..\..\rubberband\build-x64-dbg;$(ProjectDir)..\libsndfile-1.2.0\win64\lib;$(VCPKG_ROOT)\installed\x64-windows\debug\lib;$(VCPKG_ROOT)\installed\x64-windows\lib;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(ProjectDir)..\..\rubberband\build-x64-dbg;$(ProjectDir)..\libsndfile-1.2.0\win64\lib;$(VCPKG_ROOT)\installed\x64-windows\debug\lib;$(VCPKG_ROOT)\installed\x64-windows\lib;$(OutDir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>$(ProjectDir)..\..\rubberband;$(ProjectDir)..\libsndfile-1.2.0\win64\include;$(ProjectDir)..\..\portaudio\include;$(IncludePath)</IncludePath>

@@ -23,7 +23,15 @@
 
 // source code from rubberband repo, modify references for alt project
 
+// to get to know further rubberband source code details
+// still wonder to participate with rubberband-library visual studio project
+#if NDEBUG
+// build by meson
 #pragma comment(lib, "rubberband.lib")
+#else
+// build by visual studio project
+#pragma comment(lib, "rubberband-library.lib")
+#endif
 
 #include <iostream>
 #include <cmath>
@@ -600,10 +608,11 @@ int main(int argc, char **argv)
     // default formant scale = 1.0 / freq(pitch)shift if formant enabled
     double formantScale = 0.0;
     if (formant) {
+        // NOTE: pitch changes also affact formant scaling
         formantScale = 1.0 / frequencyshift;
-        cerr << "Formant preserved default " << formantScale << endl;
+        cerr << "Formant preserved default " << formantScale << "(from pitch shift)" << endl;
         formantScale *= formantFactor;
-        cerr << "Formant factor " << formantFactor << " results ratio " << formantScale << endl;
+        cerr << "Formant factor " << formantFactor << ", formant scale " << formantScale << endl;
     }
     
     // apply gain, voltage level for audio signal will be pow(10.f, db / 20.f)
