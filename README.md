@@ -47,6 +47,20 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
 ```
 
 # rubberband r3 stretcher trace #
+
+## stretcher settings ##
+- Create, to r2 or r3 Impl depends on options, and ctor with options
+  - ctor m_limits with given options and sample rate
+    - min out hop = sample rate / 512, max out hop = sample rate / 128 [128-512]
+    - min in hop = 1, max in hop (readahead = sample rate / 64) = sample rate / 32 [1-2048(1024)]
+    - if set options windowshort, See note in calculateHop
+  - set atomic time ratio, pitch scale and formant scale
+  - ctor m_guide, for fftband, phaselockband, ... and guidance configurations
+  - TODO:
+- maxProcessSize
+  - cannot larger than m_limits.overallMaxProcessSize (default 524288)
+  - ensure m_channelData cd->inbuf size n*2, cd->outbuf size n*8
+
 ## stretcher -> process() given buf[c][i] 2d array ##
 - check if inputs need resampling, and loop samples length to write m_channelData(cd) -> inbuf 
   - pre-resampling given inputs if smaller pitch scale(higher pitch) and option set quality
