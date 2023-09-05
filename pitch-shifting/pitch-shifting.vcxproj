@@ -161,6 +161,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="pitch-shifting.cpp" />
     <ClCompile Include="stretcher.cpp" />
+    <ClCompile Include="Waveform.cpp" />
     <ClCompile Include="wmain.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -184,6 +185,7 @@
     <ClInclude Include="..\imgui\imstb_truetype.h" />
     <ClInclude Include="ExitPopup.h" />
     <ClInclude Include="stretcher.hpp" />
+    <ClInclude Include="Waveform.h" />
     <ClInclude Include="wmain.hpp" />
   </ItemGroup>
   <ItemGroup>

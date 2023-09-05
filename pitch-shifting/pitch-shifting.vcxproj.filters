@@ -72,6 +72,9 @@
     <ClCompile Include="..\imgui\implot_items.cpp">
       <Filter>imgui</Filter>
     </ClCompile>
+    <ClCompile Include="Waveform.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\getopt\getopt.h">
@@ -121,6 +124,9 @@
     </ClInclude>
     <ClInclude Include="..\imgui\implot_internal.h">
       <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="Waveform.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
