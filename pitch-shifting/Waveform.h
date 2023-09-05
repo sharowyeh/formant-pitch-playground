@@ -31,30 +31,39 @@ constexpr auto PLOT_WIDTH_MAX = 4096;
 typedef struct AmplitudeBuffer {
 	int MaxSize; // ImVector uses int type to size
 	int Offset;
-	ImVector<Amplitude> Amplitudes;
-	AmplitudeBuffer(int size = PLOT_WIDTH_MAX) {
+	int Channels;
+	ImVector<Amplitude> Amplitudes[2];
+	AmplitudeBuffer(int chs = 1, int size = PLOT_WIDTH_MAX) {
 		MaxSize = size;
 		Offset = 0;
-		Amplitudes.reserve(size);
+		Channels = chs;
+		for (int ch = 0; ch < chs; ch++) {
+			if (ch > 1) break;
+			Amplitudes[ch].reserve(size);
+		}
 	}
 
-	void PushBack(float time, float positive, float negative) {
-		if (Amplitudes.Size < MaxSize) {
-			Amplitudes.push_back(Amplitude(time, positive, negative));
+	void PushBack(float time, float positive, float negative, int ch = 0) {
+		if (Amplitudes[ch].Size < MaxSize) {
+			Amplitudes[ch].push_back(Amplitude(time, positive, negative));
 		}
 		else {
-			Amplitudes[Offset] = Amplitude(time, positive, negative);
+			Amplitudes[ch][Offset] = Amplitude(time, positive, negative);
 			Offset = (Offset + 1) % MaxSize;
 		}
 	}
 	// given default 0 all data will be erase
-	void Resize(int size = 0) {
-		if (size < MaxSize) {
-			Amplitudes.shrink(size);
-			if (Offset >= size) Offset = 0;
-		} else if (size > MaxSize) {
-			Amplitudes.reserve(size);
+	void Resize(int chs = 1, int size = 0) {
+		for (int ch = 0; ch < chs; ch++) {
+			if (ch > 1) break;
+			if (size < Amplitudes[ch].capacity()) {
+				Amplitudes[ch].shrink(size);
+			}
+			else if (size > Amplitudes[ch].capacity()) {
+				Amplitudes[ch].reserve(size);
+			}
 		}
+		if (Offset >= size) Offset = 0;
 		MaxSize = size;
 	}
 } _AMPLITUDE_BUFFER;
@@ -63,6 +72,7 @@ class Waveform {
 public:
 	Waveform();
 	bool LoadAudioFile(std::string fileName, int* samplerate = nullptr, int* channels = nullptr, size_t* frames = nullptr, float** buf = nullptr);
+	void MinMaxAmp(int offset, int step, int frames, int channels, float* buf, int ch, float* pos, float* neg);
 	void ResampleAmplitudes(int width, double begin, double end, int samplerate, int frames, int channels, float* buf, int ch = 0);
 	void Update();
 	void UpdateWavPlot(); // time-amp plot
@@ -72,11 +82,15 @@ protected:
 	virtual ~Waveform();
 private:
 	AudioInfo audio;
-	// for zoom in/out on fill line plot
+	// for wavform zoom in/out on fill line plot
 	float wavPlotWidth;
 	double wavPlotBegin;
 	double wavPlotEnd;
 	ImVector<Amplitude> wavPlotBuffer[2];
+	// for realtime plot
+	bool realtimeEnabled;
+	float currentTime;
+	float elapsedRange;
 	AmplitudeBuffer plotBuffer;
 }; // class
 

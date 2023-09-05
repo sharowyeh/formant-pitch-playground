@@ -4,11 +4,14 @@ namespace GLUI {
 
 Waveform::Waveform() {
 	audio = { 0 };
-
 	wavPlotWidth = 0;
 	wavPlotBegin = 0;
 	wavPlotEnd = 0;
 	wavPlotBuffer[0].reserve(PLOT_WIDTH_MAX);
+
+	realtimeEnabled = false;
+	currentTime = 0;
+	elapsedRange = 5.f;
 }
 
 Waveform::~Waveform() {
@@ -63,6 +66,23 @@ bool Waveform::LoadAudioFile(std::string fileName, int* samplerate, int* channel
 	return true;
 }
 
+void Waveform::MinMaxAmp(int offset, int step, int frames, int channels, float* buf, int ch, float* pos, float* neg) {
+	*pos = 0.f;
+	*neg = 0.f;
+	if (offset >= frames || offset + step <= 0) {
+		return;
+	}
+	// find min/max during step from buffer
+	for (int i = 0; i < step; i++) {
+		if (offset + i <= 0) continue;
+		if (offset + i >= frames) break;
+		// buffer payload just follow sndfile stride by channels
+		size_t idx = (size_t)(offset + i) * channels + ch;
+		if (*pos < buf[idx]) *pos = buf[idx];
+		if (*neg > buf[idx]) *neg = buf[idx];
+	}
+}
+
 void Waveform::ResampleAmplitudes(int width, double begin, double end, int samplerate, int frames, int channels, float* buf, int ch)
 {
 	int beginIndex = floor(begin * samplerate);
@@ -98,15 +118,18 @@ void Waveform::Update()
 {
 	ImGui::Begin("Waveform");
 	UpdateWavPlot();
+	//TODO: perf goes crazy cause plot chart resampling
+	UpdateRealtimeWavPlot();
 	ImGui::End();
 }
 
 void Waveform::UpdateWavPlot()
 {
 	// also reserve wav plot buffer for second audio channel(maximum only support 2 channels)
-	if (audio.Channels > 1 && wavPlotBuffer[1].capacity() == 0) wavPlotBuffer[1].reserve(PLOT_WIDTH_MAX);
+	if (audio.Channels > 1 && wavPlotBuffer[1].capacity() == 0)
+		wavPlotBuffer[1].reserve(PLOT_WIDTH_MAX);
 
-	if (ImPlot::BeginPlot("wav", ImVec2(-1, -1))) {
+	if (ImPlot::BeginPlot("wav", ImVec2(-1, 300))) {
 		ImPlot::SetupAxes("time", "amp");
 		ImPlot::SetupAxisLimits(ImAxis_X1, 0, (audio.SampleRate) ? ((double)audio.Frames / audio.SampleRate) : 0);
 		ImPlot::SetupAxisLimits(ImAxis_Y1, -1, 1, ImPlotCond_Always); // fixed y-axis allows mouse control x-axis zoom, selection and scrolling
@@ -122,7 +145,7 @@ void Waveform::UpdateWavPlot()
 			wavPlotBegin = begin;
 			wavPlotEnd = end;
 		}
-		// fill out by hiline, loline
+		// fill out with amplitudes
 		ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
 		for (auto ch = 0; ch < audio.Channels; ch++) {
 			if (ch > 1) break;
@@ -154,7 +177,54 @@ void Waveform::UpdateWavPlot()
 
 void Waveform::UpdateRealtimeWavPlot()
 {
+	// also reserve buffer for second audio channel(maximum only support 2 channels)
+	if (audio.Channels > 1 && plotBuffer.Amplitudes[1].capacity() == 0) 
+		plotBuffer.Resize(2, PLOT_WIDTH_MAX);
 
+	//if (ImGui::Checkbox("Start", &realtimeEnabled)) {
+		auto deltaTime = ImGui::GetIO().DeltaTime;
+		// get amplitude min/max from buffer during current to current+delta 
+		int beginIdx = floor(currentTime * audio.SampleRate);
+		int step = floor(deltaTime * audio.SampleRate);
+		currentTime += deltaTime;
+		for (int ch = 0; ch < audio.Channels; ch++) {
+			float positive = 0.f;
+			float negative = 0.f;
+			if (beginIdx < audio.Frames) {
+				MinMaxAmp(beginIdx, step, audio.Frames, audio.Channels, audio.Buffer, ch, &positive, &negative);
+			}
+			plotBuffer.PushBack(currentTime, positive, negative, ch);
+		}
+	//}
+
+	ImGui::SliderFloat("Range", &elapsedRange, 0.5f, 5.f, "%.1f s");
+	
+	if (ImPlot::BeginPlot("##Scrolling", ImVec2(-1, 300))) {
+		ImPlot::SetupAxes("amp", "time");
+		ImPlot::SetupAxisLimits(ImAxis_X1, currentTime - elapsedRange, currentTime, ImGuiCond_Always);
+		ImPlot::SetupAxisLimits(ImAxis_Y1, -1, 1);
+		ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
+		for (auto ch = 0; ch < audio.Channels; ch++) {
+			if (ch > 1) break;
+			ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL);
+			auto label = std::string("ch").append(std::to_string(ch));
+			ImPlot::PlotShaded(label.c_str(),
+				&plotBuffer.Amplitudes[ch][0].x,
+				&plotBuffer.Amplitudes[ch][0].p,
+				&plotBuffer.Amplitudes[ch][0].n,
+				plotBuffer.Amplitudes[0].size(), 0, plotBuffer.Offset, 3 * sizeof(float));
+			ImPlot::PlotLine(label.c_str(),
+				&plotBuffer.Amplitudes[ch][0].x,
+				&plotBuffer.Amplitudes[ch][0].p,
+				plotBuffer.Amplitudes[0].size(), 0, plotBuffer.Offset, 3 * sizeof(float));
+			ImPlot::PlotLine(label.c_str(),
+				&plotBuffer.Amplitudes[ch][0].x,
+				&plotBuffer.Amplitudes[ch][0].n,
+				plotBuffer.Amplitudes[0].size(), 0, plotBuffer.Offset, 3 * sizeof(float));
+		}
+		ImPlot::PopStyleVar();
+		ImPlot::EndPlot();
+	}
 }
 
 void Waveform::UpdateSptrPlot()
