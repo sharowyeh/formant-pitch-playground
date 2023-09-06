@@ -63,12 +63,18 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
 
 ## stretcher -> process() given buf[c][i] 2d array ##
 - check if inputs need resampling, and loop samples length to write m_channelData(cd) -> inbuf 
-  - pre-resampling given inputs if smaller pitch scale(higher pitch) and option set quality
-    - (higher pitch will have less sampling than origin)
+  - pre-resampling given inputs if resampler implemented and:
+    - lower frequency or smaller pitch scale(lower pitch) with option set high quality
+    - higher frequency or higher pitch scale(higher pitch) without high quality setting
+    - realtime and high consistency will ignore pre-resampling
+    - pitch changes also envolved the frequency scaling whether frequency shifts and duration adjustments, which means:
+      in time-domain, resampling to higher frequency will result less frames(samples) from origin and conversely to lower frequency,
+      to keep specific duration with the same sample rate, 
   - loop inputs with index to copy to m_channelAssembly.input[c]
   - write to ring buffer m_channelData[c]->inbuf
 - consume()
   - apply post-resampling given in hop size to calculate out hop size via calculateSingle()
+    - interleave channels signal from in[c][i] to dst[idx] in lr pattern for resampler
   - until m_channelData cd->inbuf is enough for in hop fft window size via getWindowSourceSize()
   - analysisChannel()
     - read cd->inbuf to cd->windowSource
