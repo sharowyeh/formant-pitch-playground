@@ -98,8 +98,8 @@ int glfwWindowMain() {
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 4.f); // must pair with PopStyleVar() restore style changes for rendering loop
 
 		//ImGui::ShowDemoWindow();
-		//bool open = true;
-		//ImPlot::ShowDemoWindow(&open);
+		bool open = true;
+		ImPlot::ShowDemoWindow(&open);
 		waveform->Update();
 
 		if (glfwWindowShouldClose(window)) {

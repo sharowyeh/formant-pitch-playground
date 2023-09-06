@@ -198,11 +198,13 @@ void Waveform::UpdateRealtimeWavPlot()
 	//}
 
 	ImGui::SliderFloat("Range", &elapsedRange, 0.5f, 5.f, "%.1f s");
+	ImGui::Text("size: %d offset: %d", plotBuffer.MaxSize, plotBuffer.Offset);
 	
-	if (ImPlot::BeginPlot("##Scrolling", ImVec2(-1, 300))) {
+	if (ImPlot::BeginPlot("##wavrealtime", ImVec2(-1, 300))) {
 		ImPlot::SetupAxes("amp", "time");
 		ImPlot::SetupAxisLimits(ImAxis_X1, currentTime - elapsedRange, currentTime, ImGuiCond_Always);
-		ImPlot::SetupAxisLimits(ImAxis_Y1, -1, 1);
+		ImPlot::SetupAxisLimits(ImAxis_Y1, -1, 1, ImGuiCond_Always);
+		// NOTE: apply to all shaded, or use ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.25f) to specific
 		ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
 		for (auto ch = 0; ch < audio.Channels; ch++) {
 			if (ch > 1) break;
@@ -213,6 +215,15 @@ void Waveform::UpdateRealtimeWavPlot()
 				&plotBuffer.Amplitudes[ch][0].p,
 				&plotBuffer.Amplitudes[ch][0].n,
 				plotBuffer.Amplitudes[0].size(), 0, plotBuffer.Offset, 3 * sizeof(float));
+			// equivalent to following 2 shaded filling with y_ref = 0
+			/*ImPlot::PlotShaded(label.c_str(),
+				&plotBuffer.Amplitudes[ch][0].x,
+				&plotBuffer.Amplitudes[ch][0].p,
+				plotBuffer.Amplitudes[0].size(), 0, 0, plotBuffer.Offset, 3 * sizeof(float));
+			ImPlot::PlotShaded(label.c_str(),
+				&plotBuffer.Amplitudes[ch][0].x,
+				&plotBuffer.Amplitudes[ch][0].n,
+				plotBuffer.Amplitudes[0].size(), 0, 0, plotBuffer.Offset, 3 * sizeof(float));*/
 			ImPlot::PlotLine(label.c_str(),
 				&plotBuffer.Amplitudes[ch][0].x,
 				&plotBuffer.Amplitudes[ch][0].p,

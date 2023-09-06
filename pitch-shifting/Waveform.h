@@ -25,7 +25,7 @@ struct Amplitude {
 	constexpr Amplitude(float _x, float _p, float _n) : x(_x), p(_p), n(_n) {}
 };
 
-constexpr auto PLOT_WIDTH_MAX = 4096;
+constexpr auto PLOT_WIDTH_MAX = 3072;
 
 /* signed amplitudes for plot chart, works like ring buffer */
 typedef struct AmplitudeBuffer {
@@ -54,6 +54,8 @@ typedef struct AmplitudeBuffer {
 	}
 	// given default 0 all data will be erase
 	void Resize(int chs = 1, int size = 0) {
+		MaxSize = size;
+		Channels = chs;
 		for (int ch = 0; ch < chs; ch++) {
 			if (ch > 1) break;
 			if (size < Amplitudes[ch].capacity()) {
@@ -64,7 +66,14 @@ typedef struct AmplitudeBuffer {
 			}
 		}
 		if (Offset >= size) Offset = 0;
-		MaxSize = size;
+	}
+	void Erase() {
+		for (int ch = 0; ch < Channels; ch++) {
+			if (Amplitudes[ch].size() > 0) {
+				Amplitudes[ch].shrink(0);
+			}
+		}
+		Offset = 0;
 	}
 } _AMPLITUDE_BUFFER;
 
