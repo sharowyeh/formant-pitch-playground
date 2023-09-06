@@ -25,55 +25,42 @@ struct Amplitude {
 	constexpr Amplitude(float _x, float _p, float _n) : x(_x), p(_p), n(_n) {}
 };
 
-constexpr auto PLOT_WIDTH_MAX = 3072;
+/* can just slightly larger than window/screen width */
+constexpr auto PLOT_WIDTH_MAX = 2048;
 
 /* signed amplitudes for plot chart, works like ring buffer */
 typedef struct AmplitudeBuffer {
 	int MaxSize; // ImVector uses int type to size
 	int Offset;
-	int Channels;
-	ImVector<Amplitude> Amplitudes[2];
-	AmplitudeBuffer(int chs = 1, int size = PLOT_WIDTH_MAX) {
+	ImVector<Amplitude> Amplitudes;
+	AmplitudeBuffer(int size = PLOT_WIDTH_MAX) {
 		MaxSize = size;
 		Offset = 0;
-		Channels = chs;
-		for (int ch = 0; ch < chs; ch++) {
-			if (ch > 1) break;
-			Amplitudes[ch].reserve(size);
-		}
+		Amplitudes.reserve(size);
 	}
 
-	void PushBack(float time, float positive, float negative, int ch = 0) {
-		if (Amplitudes[ch].Size < MaxSize) {
-			Amplitudes[ch].push_back(Amplitude(time, positive, negative));
+	void PushBack(float time, float positive, float negative) {
+		if (Amplitudes.Size < MaxSize) {
+			Amplitudes.push_back(Amplitude(time, positive, negative));
 		}
 		else {
-			Amplitudes[ch][Offset] = Amplitude(time, positive, negative);
+			Amplitudes[Offset] = Amplitude(time, positive, negative);
 			Offset = (Offset + 1) % MaxSize;
 		}
 	}
-	// given default 0 all data will be erase
-	void Resize(int chs = 1, int size = 0) {
+	// given size 0 all data will be erase
+	void Resize(int size = PLOT_WIDTH_MAX) {
 		MaxSize = size;
-		Channels = chs;
-		for (int ch = 0; ch < chs; ch++) {
-			if (ch > 1) break;
-			if (size < Amplitudes[ch].capacity()) {
-				Amplitudes[ch].shrink(size);
-			}
-			else if (size > Amplitudes[ch].capacity()) {
-				Amplitudes[ch].reserve(size);
-			}
+		if (size < Amplitudes.capacity()) {
+			Amplitudes.shrink(size);
+		}
+		else if (size > Amplitudes.capacity()) {
+			Amplitudes.reserve(size);
 		}
 		if (Offset >= size) Offset = 0;
 	}
 	void Erase() {
-		for (int ch = 0; ch < Channels; ch++) {
-			if (Amplitudes[ch].size() > 0) {
-				Amplitudes[ch].shrink(0);
-			}
-		}
-		Offset = 0;
+		Resize(0);
 	}
 } _AMPLITUDE_BUFFER;
 
@@ -100,7 +87,8 @@ private:
 	bool realtimeEnabled;
 	float currentTime;
 	float elapsedRange;
-	AmplitudeBuffer plotBuffer;
+	// maximum support 2 channels
+	AmplitudeBuffer realtimeBuffer[2];
 }; // class
 
 } // namespace

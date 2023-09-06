@@ -177,9 +177,7 @@ void Waveform::UpdateWavPlot()
 
 void Waveform::UpdateRealtimeWavPlot()
 {
-	// also reserve buffer for second audio channel(maximum only support 2 channels)
-	if (audio.Channels > 1 && plotBuffer.Amplitudes[1].capacity() == 0) 
-		plotBuffer.Resize(2, PLOT_WIDTH_MAX);
+	// realtimeBuffer[n] has owned struct ctor with default size, just use it as well
 
 	//if (ImGui::Checkbox("Start", &realtimeEnabled)) {
 		auto deltaTime = ImGui::GetIO().DeltaTime;
@@ -188,17 +186,17 @@ void Waveform::UpdateRealtimeWavPlot()
 		int step = floor(deltaTime * audio.SampleRate);
 		currentTime += deltaTime;
 		for (int ch = 0; ch < audio.Channels; ch++) {
+			if (ch > 1) break;
 			float positive = 0.f;
 			float negative = 0.f;
 			if (beginIdx < audio.Frames) {
 				MinMaxAmp(beginIdx, step, audio.Frames, audio.Channels, audio.Buffer, ch, &positive, &negative);
 			}
-			plotBuffer.PushBack(currentTime, positive, negative, ch);
+			realtimeBuffer[ch].PushBack(currentTime, positive, negative);
 		}
 	//}
 
 	ImGui::SliderFloat("Range", &elapsedRange, 0.5f, 5.f, "%.1f s");
-	ImGui::Text("size: %d offset: %d", plotBuffer.MaxSize, plotBuffer.Offset);
 	
 	if (ImPlot::BeginPlot("##wavrealtime", ImVec2(-1, 300))) {
 		ImPlot::SetupAxes("amp", "time");
@@ -211,27 +209,27 @@ void Waveform::UpdateRealtimeWavPlot()
 			ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL);
 			auto label = std::string("ch").append(std::to_string(ch));
 			ImPlot::PlotShaded(label.c_str(),
-				&plotBuffer.Amplitudes[ch][0].x,
-				&plotBuffer.Amplitudes[ch][0].p,
-				&plotBuffer.Amplitudes[ch][0].n,
-				plotBuffer.Amplitudes[0].size(), 0, plotBuffer.Offset, 3 * sizeof(float));
+				&realtimeBuffer[ch].Amplitudes[0].x,
+				&realtimeBuffer[ch].Amplitudes[0].p,
+				&realtimeBuffer[ch].Amplitudes[0].n,
+				realtimeBuffer[ch].Amplitudes.size(), 0, realtimeBuffer[ch].Offset, 3 * sizeof(float));
 			// equivalent to following 2 shaded filling with y_ref = 0
 			/*ImPlot::PlotShaded(label.c_str(),
-				&plotBuffer.Amplitudes[ch][0].x,
-				&plotBuffer.Amplitudes[ch][0].p,
-				plotBuffer.Amplitudes[0].size(), 0, 0, plotBuffer.Offset, 3 * sizeof(float));
-			ImPlot::PlotShaded(label.c_str(),
-				&plotBuffer.Amplitudes[ch][0].x,
-				&plotBuffer.Amplitudes[ch][0].n,
-				plotBuffer.Amplitudes[0].size(), 0, 0, plotBuffer.Offset, 3 * sizeof(float));*/
+				&realtimeBuffer[ch].Amplitudes[0].x,
+				&realtimeBuffer[ch].Amplitudes[0].p,
+				realtimeBuffer[ch].Amplitudes.size(), 0, 0, realtimeBuffer[ch].Offset, 3 * sizeof(float));*/
+			/*ImPlot::PlotShaded(label.c_str(),
+				&realtimeBuffer[ch].Amplitudes[0].x,
+				&realtimeBuffer[ch].Amplitudes[0].n,
+				realtimeBuffer[ch].Amplitudes.size(), 0, 0, realtimeBuffer[ch].Offset, 3 * sizeof(float));*/
 			ImPlot::PlotLine(label.c_str(),
-				&plotBuffer.Amplitudes[ch][0].x,
-				&plotBuffer.Amplitudes[ch][0].p,
-				plotBuffer.Amplitudes[0].size(), 0, plotBuffer.Offset, 3 * sizeof(float));
+				&realtimeBuffer[ch].Amplitudes[0].x,
+				&realtimeBuffer[ch].Amplitudes[0].p,
+				realtimeBuffer[ch].Amplitudes.size(), 0, realtimeBuffer[ch].Offset, 3 * sizeof(float));
 			ImPlot::PlotLine(label.c_str(),
-				&plotBuffer.Amplitudes[ch][0].x,
-				&plotBuffer.Amplitudes[ch][0].n,
-				plotBuffer.Amplitudes[0].size(), 0, plotBuffer.Offset, 3 * sizeof(float));
+				&realtimeBuffer[ch].Amplitudes[0].x,
+				&realtimeBuffer[ch].Amplitudes[0].n,
+				realtimeBuffer[ch].Amplitudes.size(), 0, realtimeBuffer[ch].Offset, 3 * sizeof(float));
 		}
 		ImPlot::PopStyleVar();
 		ImPlot::EndPlot();
