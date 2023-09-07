@@ -68,7 +68,8 @@ class Waveform {
 public:
 	Waveform();
 	bool LoadAudioFile(std::string fileName, int* samplerate = nullptr, int* channels = nullptr, size_t* frames = nullptr, float** buf = nullptr);
-	void MinMaxAmp(int offset, int step, int frames, int channels, float* buf, int ch, float* pos, float* neg);
+	/* return min and max value from frame buffer from offset during the length */
+	void GetRangeMinMax(int offset, int length, int frames, int channels, float* buf, int ch, float* maximum, float* minimum);
 	void ResampleAmplitudes(int width, double begin, double end, int samplerate, int frames, int channels, float* buf, int ch = 0);
 	void Update();
 	void UpdateWavPlot(); // time-amp plot
@@ -78,13 +79,14 @@ protected:
 	virtual ~Waveform();
 private:
 	AudioInfo audio;
+	bool wavPlotEnabled;
 	// for wavform zoom in/out on fill line plot
 	float wavPlotWidth;
 	double wavPlotBegin;
 	double wavPlotEnd;
 	ImVector<Amplitude> wavPlotBuffer[2];
 	// for realtime plot
-	bool realtimeEnabled;
+	bool realtimePlotEnabled;
 	float currentTime;
 	float elapsedRange;
 	// maximum support 2 channels

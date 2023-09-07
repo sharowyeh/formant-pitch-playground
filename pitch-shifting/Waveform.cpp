@@ -4,12 +4,14 @@ namespace GLUI {
 
 Waveform::Waveform() {
 	audio = { 0 };
+
+	wavPlotEnabled = false;
 	wavPlotWidth = 0;
 	wavPlotBegin = 0;
 	wavPlotEnd = 0;
 	wavPlotBuffer[0].reserve(PLOT_WIDTH_MAX);
 
-	realtimeEnabled = false;
+	realtimePlotEnabled = false;
 	currentTime = 0;
 	elapsedRange = 5.f;
 }
@@ -66,20 +68,19 @@ bool Waveform::LoadAudioFile(std::string fileName, int* samplerate, int* channel
 	return true;
 }
 
-void Waveform::MinMaxAmp(int offset, int step, int frames, int channels, float* buf, int ch, float* pos, float* neg) {
-	*pos = 0.f;
-	*neg = 0.f;
-	if (offset >= frames || offset + step <= 0) {
+void Waveform::GetRangeMinMax(int offset, int length, int frames, int channels, float* buf, int ch, float* maximum, float* minimum) {
+	// out of range
+	if (offset >= frames || offset + length <= 0) {
 		return;
 	}
-	// find min/max during step from buffer
-	for (int i = 0; i < step; i++) {
+	// find min/max during length from buffer
+	for (int i = 0; i < length; i++) {
 		if (offset + i <= 0) continue;
 		if (offset + i >= frames) break;
 		// buffer payload just follow sndfile stride by channels
 		size_t idx = (size_t)(offset + i) * channels + ch;
-		if (*pos < buf[idx]) *pos = buf[idx];
-		if (*neg > buf[idx]) *neg = buf[idx];
+		if (*maximum < buf[idx]) *maximum = buf[idx];
+		if (*minimum > buf[idx]) *minimum = buf[idx];
 	}
 }
 
@@ -87,29 +88,23 @@ void Waveform::ResampleAmplitudes(int width, double begin, double end, int sampl
 {
 	int beginIndex = floor(begin * samplerate);
 	int endIndex = floor(end * samplerate);
-	double stride = (end - begin) / width;
-	int step = floor(stride * samplerate);
+	double interval = (end - begin) / width;
+	int sampleCnt = floor(interval * samplerate);
 	// loop by ui width pixel
 	for (int i = 0; i < width; i++) {
-		int idx = beginIndex + floor(stride * i * samplerate);
-		float hi = -1.f;
-		float lo = 1.f;
-		// find max/min during step from buffer for each steps
-		for (int j = 0; j < step; j++) {
-			if (idx + j >= frames || idx + j < 0) {
-				break;
-			}
-			// directly from sndfile buf with channels
-			size_t pos = ((size_t)idx + j) * channels + ch;
-			hi = (hi < buf[pos]) ? buf[pos] : hi;
-			lo = (lo > buf[pos]) ? buf[pos] : lo;
-		}
+		int idx = beginIndex + floor(interval * samplerate * i);
+		float high = -1.f;
+		float low = 1.f;
+		// get a min max represent an interval samples
+		GetRangeMinMax(idx, sampleCnt, frames, channels, buf, ch, &high, &low);
+		if (high == -1.f) high = 0.f;
+		if (low == 1.f) low = 0.f;
 		// rescale time(x axis)
 		if (wavPlotBuffer[ch].size() <= i) {
-			wavPlotBuffer[ch].push_back(Amplitude(begin + stride * i, hi == -1.f ? 0 : hi, lo == 1.f ? 0 : lo));
+			wavPlotBuffer[ch].push_back(Amplitude(begin + interval * i, high, low));
 		}
 		else {
-			wavPlotBuffer[ch][i] = Amplitude(begin + stride * i, hi == -1.f ? 0 : hi, lo == 1.f ? 0 : lo);
+			wavPlotBuffer[ch][i] = Amplitude(begin + interval * i, high, low);
 		}
 	}
 }
@@ -125,6 +120,11 @@ void Waveform::Update()
 
 void Waveform::UpdateWavPlot()
 {
+	if (ImGui::Checkbox("Enable Wavfile Plot", &wavPlotEnabled)) {
+	}
+
+	if (wavPlotEnabled == false) return;
+
 	// also reserve wav plot buffer for second audio channel(maximum only support 2 channels)
 	if (audio.Channels > 1 && wavPlotBuffer[1].capacity() == 0)
 		wavPlotBuffer[1].reserve(PLOT_WIDTH_MAX);
@@ -177,24 +177,27 @@ void Waveform::UpdateWavPlot()
 
 void Waveform::UpdateRealtimeWavPlot()
 {
+	if (ImGui::Checkbox("Enable Realtime Plot", &realtimePlotEnabled) == false) {
+	}
+
+	if (realtimePlotEnabled == false) return;
+
 	// realtimeBuffer[n] has owned struct ctor with default size, just use it as well
 
-	//if (ImGui::Checkbox("Start", &realtimeEnabled)) {
-		auto deltaTime = ImGui::GetIO().DeltaTime;
-		// get amplitude min/max from buffer during current to current+delta 
-		int beginIdx = floor(currentTime * audio.SampleRate);
-		int step = floor(deltaTime * audio.SampleRate);
-		currentTime += deltaTime;
-		for (int ch = 0; ch < audio.Channels; ch++) {
-			if (ch > 1) break;
-			float positive = 0.f;
-			float negative = 0.f;
-			if (beginIdx < audio.Frames) {
-				MinMaxAmp(beginIdx, step, audio.Frames, audio.Channels, audio.Buffer, ch, &positive, &negative);
-			}
-			realtimeBuffer[ch].PushBack(currentTime, positive, negative);
+	auto deltaTime = ImGui::GetIO().DeltaTime;
+	// get amplitude min/max from buffer during current to current+delta 
+	int beginIdx = floor(currentTime * audio.SampleRate);
+	int sampleCnt = floor(deltaTime * audio.SampleRate);
+	currentTime += deltaTime;
+	for (int ch = 0; ch < audio.Channels; ch++) {
+		if (ch > 1) break;
+		float positive = 0.f;
+		float negative = 0.f;
+		if (beginIdx < audio.Frames) {
+			GetRangeMinMax(beginIdx, sampleCnt, audio.Frames, audio.Channels, audio.Buffer, ch, &positive, &negative);
 		}
-	//}
+		realtimeBuffer[ch].PushBack(currentTime, positive, negative);
+	}
 
 	ImGui::SliderFloat("Range", &elapsedRange, 0.5f, 5.f, "%.1f s");
 	
