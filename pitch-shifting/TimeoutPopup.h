@@ -13,7 +13,7 @@ public:
 	TimeoutPopup(GLFWwindow* window);
 	~TimeoutPopup();
 	/* design for caller custom close callback */
-	void(*OnTimeoutElasped)(GLFWwindow* window);
+	void(*OnTimeoutElapsed)(GLFWwindow* window);
 
 	void Show(bool show = true, float timeout = 3.f);
 	void Render();

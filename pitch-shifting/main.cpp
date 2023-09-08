@@ -97,18 +97,22 @@ void debugGLwindow()
     //DEBUG: try init gui window here
     window = GLUI::Window::Create("Rubberband GUI", 1280, 720);
     window->OnRenderFrame = [](GLUI::Window* wnd) {
-        //try here
+        // is the same afterward the window->PrepareFrame()
     };
     window->OnWindowClosing = [](GLUI::Window* wnd) {
-        printf("close!\n");
-        // raise event to timeout popup
-        leavePopup->Show(true, 3.f);
-        // reset main window close flag, let main window close popup decide
-        glfwSetWindowShouldClose(wnd->GetGlfwWindow(), 0);
+        printf("on window close!\n");
+        if (leavePopup) {
+            // prevent main window closing from default behavior, hand over to popup callback -> timeout slapsed
+            glfwSetWindowShouldClose(window->GetGlfwWindow(), 0);
+            // raise timeout popup displaying time remaining
+            leavePopup->Show(true, 3.f);
+        }
     };
     leavePopup = new GLUI::TimeoutPopup(window->GetGlfwWindow());
-    leavePopup->OnTimeoutElasped = [](GLFWwindow* wnd) {
-        printf("timeout!\n");
+    leavePopup->OnTimeoutElapsed = [](GLFWwindow* wnd) {
+        printf("on timeout elapsed!\n");
+        // exit message loop to close main window
+        glfwSetWindowShouldClose(window->GetGlfwWindow(), 1);
     };
     waveform = new GLUI::Waveform();
     // DEBUG: read my debug audio

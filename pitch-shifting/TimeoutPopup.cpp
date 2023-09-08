@@ -8,7 +8,7 @@ namespace GLUI {
 		isShow(false),
 		timeout(3.f),
 		elapsed(0.f),
-		OnTimeoutElasped(nullptr)
+		OnTimeoutElapsed(nullptr)
 	{
 		parentWindow = window;
 	}
@@ -54,11 +54,9 @@ namespace GLUI {
 				// close this popup
 				ImGui::CloseCurrentPopup();
 				// invoke caller custom close callback
-				if (OnTimeoutElasped) {
-					OnTimeoutElasped(parentWindow);
+				if (OnTimeoutElapsed) {
+					OnTimeoutElapsed(parentWindow);
 				}
-				// exit message loop to close main window
-				glfwSetWindowShouldClose(parentWindow, GLFW_TRUE);
 			}
 			ImGui::EndPopup();
 		}

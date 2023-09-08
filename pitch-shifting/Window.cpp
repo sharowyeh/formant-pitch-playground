@@ -32,6 +32,12 @@ namespace GLUI {
 	{
 		if (!glfwInit()) throw std::runtime_error("Can't initialize GLFW!");
 
+		// window style can only after glfwinit before create window
+		/* remove window caption */
+		//glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+		/* topmost */
+		//glfwWindowHint(GLFW_FLOATING, GLFW_TRUE);
+
 		m_GlfwWindow = glfwCreateWindow(width, height, title, NULL, NULL);
 		if (!m_GlfwWindow) throw std::runtime_error("Can't create window!");
 
@@ -40,7 +46,7 @@ namespace GLUI {
 		// create window context first
 		glfwMakeContextCurrent(m_GlfwWindow);
 		
-		/* for vsync */
+		/* for vsync, fixed maximum 60 FPS in windowed mode */
 		//glfwSwapInterval(1);
 
 		// then initialize glew for further support texture 2d features
@@ -120,6 +126,10 @@ namespace GLUI {
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
+
+		if (OnRenderFrame) {
+			OnRenderFrame(this);
+		}
 
 		return glfwWindowShouldClose(m_GlfwWindow);
 	}
