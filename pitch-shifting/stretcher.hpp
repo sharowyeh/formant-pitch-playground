@@ -102,7 +102,7 @@ public:
     bool SetOutputStream(int index);
     void StartOutputStream() { if (outStream) Pa_StartStream(outStream); };
     void StopOutputStream() { if (outStream) Pa_StopStream(outStream); };
-    // TODO: do something in alter thread
+    // DEBUG: original design for waiting audio stream to receive/send audio frames in portaudio callback, now use main loop instead
     void WaitStream(int timeout = 2000) { if (inStream || outStream) Pa_Sleep(timeout); };
 
 protected:

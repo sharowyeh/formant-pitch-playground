@@ -1,27 +1,6 @@
 /* -*- c-basic-offset: 4 indent-tabs-mode: nil -*-  vi:set ts=8 sts=4 sw=4: */
 
-/*
-    Rubber Band Library
-    An audio time-stretching and pitch-shifting library.
-    Copyright 2007-2023 Particular Programs Ltd.
-
-    This program is free software; you can redistribute it and/or
-    modify it under the terms of the GNU General Public License as
-    published by the Free Software Foundation; either version 2 of the
-    License, or (at your option) any later version.  See the file
-    COPYING included with this distribution for more information.
-
-    Alternatively, if you have a valid commercial licence for the
-    Rubber Band Library obtained by agreement with the copyright
-    holders, you may redistribute and/or modify it under the terms
-    described in that licence.
-
-    If you wish to distribute code using the Rubber Band Library
-    under terms other than those of the GNU General Public License,
-    you must obtain a valid commercial licence before doing so.
-*/
-
-// source code from rubberband repo, modify references for alt project
+/* source code from rubberband repo, modify its demo console app as alt project */
 
 // to get to know further rubberband source code details, wonder to participate with 
 // rubberband-library visual studio project, but still has more glitch than meson build
@@ -76,11 +55,11 @@ using std::endl;
 //
 #include "parameters.h"
 
-// for user input event to break rubberband process while loop
-// TODO: since the original rubberband example using iostream to output debugging info,
-//       it's not ideal way to integrate with curses c library for user input to stop while loop,
-//       do something else... 
-//#include <ncurses.h>
+enum DataSource {
+    SourceUnknown,
+    AudioFile,
+    AudioDevice
+};
 
 // for opengl gui
 #include "Window.hpp"
@@ -174,24 +153,20 @@ int main(int argc, char **argv)
     bool pitchToFreq = freqMapFile.empty();
     sther->LoadFreqMap((pitchToFreq ? pitchMapFile : freqMapFile), pitchToFreq);
 
-    // move input/output file name right aftering getopt resolver
-    /*char *inAudioParam = strdup(argv[optind++]);
-    char *outAudioParam = strdup(argv[optind++]);*/
-
-    bool inUseFile = false;
-    bool outUseFile = false;
+    DataSource inSource = DataSource::SourceUnknown;
+    DataSource outSource = DataSource::SourceUnknown;
     std::string extIn, extOut;
     for (int i = strlen(inAudioParam); i > 0; ) {
         if (inAudioParam[--i] == '.') {
             extIn = inAudioParam + i + 1;
-            inUseFile = true;
+            inSource = DataSource::AudioFile;
             break;
         }
     }
     for (int i = strlen(outAudioParam); i > 0; ) {
         if (outAudioParam[--i] == '.') {
             extOut = outAudioParam + i + 1;
-            outUseFile = true;
+            outSource = DataSource::AudioFile;
             break;
         }
     }
@@ -203,11 +178,11 @@ int main(int argc, char **argv)
 
     // check input/output audio file or device
     bool checkAudio = true;
-    if (inUseFile) {
+    if (inSource) {
         checkAudio = sther->LoadInputFile(inAudioParam, &sampleRate, &channels, &format, &inputFrames, ratio, duration);
     }
-    if (outUseFile) {
-        checkAudio = sther->SetOutputFile(outAudioParam, sampleRate, 2, format);
+    if (outSource) {
+        checkAudio &= sther->SetOutputFile(outAudioParam, sampleRate, 2, format);
     }
     if (checkAudio == false) {
         cerr << "Set input/output to files but invalid" << endl;
@@ -226,23 +201,29 @@ int main(int argc, char **argv)
     int inDevIndex = 43;
     // 1: mymacout48k, 15: mywinout44k(mme), 26/28/34: mywinout48k(wdm/aux/vcable)
     int outDevIndex = 26;
-    bool inUseDev = checkNumuric(inAudioParam, &inDevIndex);
-    bool outUseDev = checkNumuric(outAudioParam, &outDevIndex);
-
-    if (inUseDev) {
+    if (checkNumuric(inAudioParam, &inDevIndex)) {
         checkAudio = sther->SetInputStream(inDevIndex, &sampleRate, &channels);
+        if (checkAudio) {
+            inSource = DataSource::AudioDevice;
+        }
     }
-    if (outUseDev) {
-        checkAudio = sther->SetOutputStream(outDevIndex);
+    if (checkNumuric(outAudioParam, &outDevIndex)) {
+        checkAudio &= sther->SetOutputStream(outDevIndex);
+        if (checkAudio) {
+            outSource = DataSource::AudioDevice;
+        }
     }
+
     if (checkAudio == false) {
         cerr << "Set input/output audio device failed" << endl;
         delete sther;
         return 1;
     }
 
-    //DEBUG: TODO: currently use input frames for realtime duration
-    inputFrames = sampleRate * 3600 * 3; // 3hr for long duration test 
+    // if use capture device as input, given duration or infinity -1?
+    if (inSource == DataSource::AudioDevice) {
+        inputFrames = (int)INFINITE;//sampleRate * 3600 * 3; // 3hr for long duration test 
+    }
 
     RubberBandStretcher::Options options = 0;
     options = sther->SetOptions(finer, realtime, typewin, smoothing, formant,
@@ -295,24 +276,17 @@ int main(int argc, char **argv)
     bool successful = false;
     int thisBlockSize;
     
-    // initscr(); // initialize ncurses to get user input
-    // noecho();
-    // nodelay(stdscr, TRUE);
+    setWaitKey('q'); // set wait key for user interrupts process loop (mainly to cancel audio stream realtime works)
 
-    //DEBUG: start GUI frame refresh here, NOTE: thread will be blocked and callback invokes depends on GUI refresh rate
-    auto windowRenderCallback = [](void* param) {
-    };
-    //TODO: move to while loop, but it may be better thread isolated
-    //glfwWindowRender(windowRenderCallback);
-    //glfwWindowDestory();
-    
     while (!successful) { // we may have to repeat with a modified
                           // gain, if clipping occurs
         successful = true;
 
         sther->Create(sampleRate, channels, options, ratio, frequencyshift);
         
-        //sther->ExpectedInputDuration(inputFrames); // estimate from input file
+        if (inSource == DataSource::AudioFile) {
+            sther->ExpectedInputDuration(inputFrames); // estimate from input file
+        }
         sther->MaxProcessSize(defBlockSize);
         sther->FormantScale(formantScale);
         sther->SetIgnoreClipping(ignoreClipping);
@@ -321,7 +295,7 @@ int main(int argc, char **argv)
         sther->StartOutputStream();
 
         if (!realtime) {
-            sther->StudyInputSound();
+            sther->StudyInputSound(); // only works on input data source is file
         }
 
         int frame = 0;
@@ -359,20 +333,28 @@ int main(int argc, char **argv)
                 cerr << "Pass 2: Processing..." << endl;
             }
 
-            // int p = int((double(frame) * 100.0) / inputFrames);
-            // if (p > percent || frame == 0) {
-            //     percent = p;
-            //     if (!quiet) {
-            //         cerr << "\r" << percent << "% ";
-            //     }
-            // }
+            // show process percentage if input source is audio file(estimatable duration)
+            if (inSource == DataSource::AudioFile) {
+                int p = int((double(frame) * 100.0) / inputFrames);
+                if (p > percent || frame == 0) {
+                    percent = p;
+                    if (!quiet) {
+                        cerr << "\r" << percent << "% ";
+                    }
+                }
+            }
             
             // exit while loop if all input frames are processed
-            if (frame >= inputFrames) {
-            //if (getch() == 'q') {
-                cerr << "=== Stop reading inputs ===" << endl;
-                // TODO: original design is frame + blockSize >= total input frames
+            if (frame >= inputFrames && inputFrames > 0) {
+                cerr << "=== End reading inputs ===" << endl;
+                // TODO: original design is frame + blockSize >= total input frames (forget why)
                 reading = false;
+            }
+            // peaceful leaving while loop if user press any key to cancel
+            if (isWaitKeyPressed()) {
+                cerr << "=== Cancel reading inputs ===" << endl;
+                reading = false;
+                successful = true;
             }
         } // while (reading)
 
@@ -397,11 +379,9 @@ int main(int argc, char **argv)
 
     } // while (successful)
 
-    //endwin(); // cleanup ncurses
-
     sther->CloseFiles();
 
-    sther->WaitStream();
+    //sther->WaitStream(); // DEBUG: no need to wait stream for callback, use main loop instead
     sther->StopInputStream();
     sther->StopOutputStream();
 

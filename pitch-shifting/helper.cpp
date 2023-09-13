@@ -181,3 +181,26 @@ bool checkNumuric(char* arr, int* out) {
     }
     return false;
 }
+
+std::atomic<bool> m_waitKeyPressed = false;
+std::thread* m_waitKeyThread = nullptr;
+bool isWaitKeyPressed() { return m_waitKeyPressed; }
+void setWaitKey(int keyCode) {
+    // ignore if thread is working
+    if (m_waitKeyThread) {
+        return;
+    }
+    m_waitKeyPressed = false;
+    m_waitKeyThread = new std::thread([keyCode]() {
+        while (true) {
+            int key = getch();
+            if (key == keyCode) {
+                std::cout << "key " << keyCode << " pressed\n";
+                break;
+            }
+        }
+        m_waitKeyPressed = true;
+        });
+    // without blocking caller thread
+    m_waitKeyThread->detach();
+}
