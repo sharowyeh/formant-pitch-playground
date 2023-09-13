@@ -63,10 +63,12 @@ enum DataSource {
 
 // for opengl gui
 #include "Window.hpp"
+#include "CtrlForm.h"
 #include "TimeoutPopup.h"
 #include "Waveform.h"
 
 GLUI::Window* window = nullptr;
+GLUI::CtrlForm* ctrlForm = nullptr;
 GLUI::TimeoutPopup* leavePopup = nullptr;
 GLUI::Waveform* waveform = nullptr;
 
@@ -87,6 +89,7 @@ void debugGLwindow()
             leavePopup->Show(true, 3.f);
         }
     };
+    ctrlForm = new GLUI::CtrlForm(window->GetGlfwWindow());
     leavePopup = new GLUI::TimeoutPopup(window->GetGlfwWindow());
     leavePopup->OnTimeoutElapsed = [](GLFWwindow* wnd) {
         printf("on timeout elapsed!\n");
@@ -99,8 +102,11 @@ void debugGLwindow()
     while (!window->PrepareFrame()) {
         // just because want curvy corner, must pair with PopStyleVar() restore style changes for rendering loop
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 4.f);
+
+        ctrlForm->Render();
         leavePopup->Render();
         waveform->Update();
+        
         ImGui::PopStyleVar();
         window->SwapWindow();
     }

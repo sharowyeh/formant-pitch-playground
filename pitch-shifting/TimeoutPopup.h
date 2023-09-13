@@ -1,6 +1,6 @@
 #pragma once
+
 /* for GLFWwindow to set main window close */
-#include "../imgui/imgui_impl_glfw.h"
 #include <GLFW/glfw3.h>
 #include <string>
 

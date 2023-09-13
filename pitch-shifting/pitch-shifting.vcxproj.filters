@@ -81,6 +81,9 @@
     <ClCompile Include="helper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="CtrlForm.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\getopt\getopt.h">
@@ -138,6 +141,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="parameters.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CtrlForm.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
