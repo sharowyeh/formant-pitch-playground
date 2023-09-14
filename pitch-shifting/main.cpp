@@ -249,6 +249,15 @@ int main(int argc, char **argv)
         inputFrames = (int)INFINITE;//sampleRate * 3600 * 3; // 3hr for long duration test 
     }
 
+    //DEBUG: since GUI init in another thread, ensure all GUI are ready
+    while (!waveform) {
+        Sleep(100);
+    }
+    //DEBUG: set audio information to GUI plot
+    waveform->SetInputAudioInfo(sampleRate, channels);
+    //DEBUG: inputFrames must afterward sther->SetInputStream for ring buffer initialization
+    waveform->SetInputFrame(sther->inFrames);
+
     RubberBandStretcher::Options options = 0;
     options = sther->SetOptions(finer, realtime, typewin, smoothing, formant,
         together, hqpitch, lamination, threading, transients, detector);

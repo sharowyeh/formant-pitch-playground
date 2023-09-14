@@ -3,7 +3,9 @@
 namespace GLUI {
 
 Waveform::Waveform() {
-	audio = { 0 };
+	audioFile = { 0 };
+	audioDevice = { 0 };
+	inFrames = nullptr;
 
 	wavPlotEnabled = false;
 	wavPlotWidth = 0;
@@ -17,9 +19,13 @@ Waveform::Waveform() {
 }
 
 Waveform::~Waveform() {
-	if (audio.Buffer) {
-		delete audio.Buffer;
-		audio.Buffer = nullptr;
+	if (audioFile.Buffer) {
+		delete audioFile.Buffer;
+		audioFile.Buffer = nullptr;
+	}
+	if (audioDevice.Buffer) {
+		delete audioDevice.Buffer;
+		audioDevice.Buffer = nullptr;
 	}
 }
 
@@ -33,9 +39,9 @@ bool Waveform::LoadAudioFile(std::string fileName, int* samplerate, int* channel
 		printf("error read file %s\n", fileName.c_str());
 		return false;
 	}
-	audio.SampleRate = info->samplerate;
-	audio.Channels = info->channels;
-	audio.Frames = info->frames;
+	audioFile.SampleRate = info->samplerate;
+	audioFile.Channels = info->channels;
+	audioFile.Frames = info->frames;
 	printf("file %s:\n samplerate:%d, channels:%d, format:%d, frames:%lld\n", fileName.c_str(), info->samplerate, info->channels, info->format, info->frames);
 	// return to caller if specific
 	if (samplerate) *samplerate = info->samplerate;
@@ -43,12 +49,12 @@ bool Waveform::LoadAudioFile(std::string fileName, int* samplerate, int* channel
 	if (frames) *frames = info->frames;
 
 	// rebuild data buffer
-	if (audio.Buffer) {
-		delete audio.Buffer;
+	if (audioFile.Buffer) {
+		delete audioFile.Buffer;
 	}
 	// NOTE: it quite huge mem usage from a wave file...
-	audio.Buffer = (float*)calloc(audio.Frames * audio.Channels, sizeof(float));
-	float* tmp = audio.Buffer;
+	audioFile.Buffer = (float*)calloc(audioFile.Frames * audioFile.Channels, sizeof(float));
+	float* tmp = audioFile.Buffer;
 	// read all float audio data
 	size_t read = 0;
 	while (read < info->frames) {
@@ -56,9 +62,9 @@ bool Waveform::LoadAudioFile(std::string fileName, int* samplerate, int* channel
 		tmp += count * info->channels;
 		read += count;
 	}
-	printf("do something to buffer %p\n", audio.Buffer);
+	printf("do something to buffer %p\n", audioFile.Buffer);
 	// return to caller if pointer of buffer exists
-	if (buf) *buf = audio.Buffer;
+	if (buf) *buf = audioFile.Buffer;
 
 	// close file
 	if (f) {
@@ -66,6 +72,23 @@ bool Waveform::LoadAudioFile(std::string fileName, int* samplerate, int* channel
 	}
 
 	return true;
+}
+
+void Waveform::SetInputAudioInfo(int samplerate, int channels) {
+	audioDevice.SampleRate = samplerate;
+	audioDevice.Channels = channels;
+}
+
+void Waveform::SetInputFrame(RubberBand::RingBuffer<float>* frames) {
+	inFrames = frames;
+
+	// audio info must have larger than 1 sec as temperary buffer for resampling
+	audioDevice.Frames = audioDevice.SampleRate;
+	if (audioDevice.Buffer) {
+		delete audioDevice.Buffer;
+		audioDevice.Buffer = nullptr;
+	}
+	audioDevice.Buffer = (float*)calloc(audioDevice.Frames * audioDevice.Channels, sizeof(float));
 }
 
 void Waveform::GetRangeMinMax(int offset, int length, int frames, int channels, float* buf, int ch, float* maximum, float* minimum) {
@@ -126,20 +149,20 @@ void Waveform::UpdateWavPlot()
 	if (wavPlotEnabled == false) return;
 
 	// also reserve wav plot buffer for second audio channel(maximum only support 2 channels)
-	if (audio.Channels > 1 && wavPlotBuffer[1].capacity() == 0)
+	if (audioFile.Channels > 1 && wavPlotBuffer[1].capacity() == 0)
 		wavPlotBuffer[1].reserve(PLOT_WIDTH_MAX);
 
 	if (ImPlot::BeginPlot("wav", ImVec2(-1, 300))) {
 		ImPlot::SetupAxes("time", "amp");
-		ImPlot::SetupAxisLimits(ImAxis_X1, 0, (audio.SampleRate) ? ((double)audio.Frames / audio.SampleRate) : 0);
+		ImPlot::SetupAxisLimits(ImAxis_X1, 0, (audioFile.SampleRate) ? ((double)audioFile.Frames / audioFile.SampleRate) : 0);
 		ImPlot::SetupAxisLimits(ImAxis_Y1, -1, 1, ImPlotCond_Always); // fixed y-axis allows mouse control x-axis zoom, selection and scrolling
 		auto width = ImPlot::GetPlotSize().x;
 		auto begin = ImPlot::GetPlotLimits().X.Min;
 		auto end = ImPlot::GetPlotLimits().X.Max;
-		if (audio.Buffer && (wavPlotWidth != width || wavPlotBegin != begin || wavPlotEnd != end)) {
-			for (auto ch = 0; ch < audio.Channels; ch++) {
+		if (audioFile.Buffer && (wavPlotWidth != width || wavPlotBegin != begin || wavPlotEnd != end)) {
+			for (auto ch = 0; ch < audioFile.Channels; ch++) {
 				if (ch > 1) break;
-				ResampleAmplitudes(width, begin, end, audio.SampleRate, audio.Frames, audio.Channels, audio.Buffer, ch);
+				ResampleAmplitudes(width, begin, end, audioFile.SampleRate, audioFile.Frames, audioFile.Channels, audioFile.Buffer, ch);
 			}
 			wavPlotWidth = width;
 			wavPlotBegin = begin;
@@ -147,7 +170,7 @@ void Waveform::UpdateWavPlot()
 		}
 		// fill out with amplitudes
 		ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
-		for (auto ch = 0; ch < audio.Channels; ch++) {
+		for (auto ch = 0; ch < audioFile.Channels; ch++) {
 			if (ch > 1) break;
 			ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL);
 			auto label = std::string("ch").append(std::to_string(ch));
@@ -168,7 +191,7 @@ void Waveform::UpdateWavPlot()
 		ImPlot::PopStyleVar();
 		// dummy fitting line
 		ImPlot::SetNextLineStyle(ImVec4(0, 0, 0, 0));
-		float dx[2] = { 0.f, (audio.SampleRate) ? (float)audio.Frames / audio.SampleRate : 0.f };
+		float dx[2] = { 0.f, (audioFile.SampleRate) ? (float)audioFile.Frames / audioFile.SampleRate : 0.f };
 		float dy[2] = { -1.f, 1.f };
 		ImPlot::PlotLine("##dummy", dx, dy, 2);
 		ImPlot::EndPlot();
@@ -182,19 +205,38 @@ void Waveform::UpdateRealtimeWavPlot()
 
 	if (realtimePlotEnabled == false) return;
 
+	// makes sure input device has been initialized (by SetInputAudioInfo and SetInputFrame
+	if (audioDevice.SampleRate == 0 || audioDevice.Channels == 0 || inFrames == nullptr) return;
+
 	// realtimeBuffer[n] has owned struct ctor with default size, just use it as well
 
 	auto deltaTime = ImGui::GetIO().DeltaTime;
 	// get amplitude min/max from buffer during current to current+delta 
-	int beginIdx = floor(currentTime * audio.SampleRate);
-	int sampleCnt = floor(deltaTime * audio.SampleRate);
+	int beginIdx = floor(currentTime * audioDevice.SampleRate); // no use to audio device stream
+	int sampleCnt = floor(deltaTime * audioDevice.SampleRate);
 	currentTime += deltaTime;
-	for (int ch = 0; ch < audio.Channels; ch++) {
+	// NOTE: for variable size of audio stream device via ring buffer, may only focus sampleCnt and readable size
+	//   retrieve ring buffer to our continuous temperary buffer for plot chart resampling
+	//   the `readable` number is samples * channels
+	int readable = inFrames->getReadSpace();
+	if (readable < sampleCnt * audioDevice.Channels) {
+		//TODO: plot is works but seems not stable in reading
+		std::cout << "readable:" << readable << " is less than required sample cnt:" << sampleCnt << " chs:" << audioDevice.Channels << std::endl;
+	}
+	if (readable > audioDevice.Frames * audioDevice.Channels) { /* Frames = SampleRate, refer to SetInputFrame */
+		std::cout << "readable:" << readable << " is large than temperary buffer:" << audioDevice.Frames << " chs:" << audioDevice.Channels << std::endl;
+		//TODO: if ring buffer is too large to temperary buffer, drop frames
+		inFrames->read(audioDevice.Buffer, audioDevice.Frames * audioDevice.Channels);
+	}
+	inFrames->read(audioDevice.Buffer, readable);
+	int frames = readable / audioDevice.Channels;
+	for (int ch = 0; ch < audioDevice.Channels; ch++) {
 		if (ch > 1) break;
 		float positive = 0.f;
 		float negative = 0.f;
-		if (beginIdx < audio.Frames) {
-			GetRangeMinMax(beginIdx, sampleCnt, audio.Frames, audio.Channels, audio.Buffer, ch, &positive, &negative);
+		
+		if (frames > 0) {
+			GetRangeMinMax(0, sampleCnt, frames, audioDevice.Channels, audioDevice.Buffer, ch, &positive, &negative);
 		}
 		realtimeBuffer[ch].PushBack(currentTime, positive, negative);
 	}
@@ -207,7 +249,7 @@ void Waveform::UpdateRealtimeWavPlot()
 		ImPlot::SetupAxisLimits(ImAxis_Y1, -1, 1, ImGuiCond_Always);
 		// NOTE: apply to all shaded, or use ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.25f) to specific
 		ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
-		for (auto ch = 0; ch < audio.Channels; ch++) {
+		for (auto ch = 0; ch < audioDevice.Channels; ch++) {
 			if (ch > 1) break;
 			ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL);
 			auto label = std::string("ch").append(std::to_string(ch));

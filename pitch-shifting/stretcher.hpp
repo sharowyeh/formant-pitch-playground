@@ -110,9 +110,11 @@ public:
     // list audio devices via portaudio
     int ListAudioDevices(std::vector<SourceDesc>& devices);
     PaStreamCallback *debugCallback;
-
+    //TODO: can private
     PaStream *inStream;
+    const PaDeviceInfo* inInfo = nullptr;
     PaStream *outStream;
+    const PaDeviceInfo* outInfo = nullptr;
 
     bool SetInputStream(int index, int *pSampleRate = nullptr, int *pChannels = nullptr);
     void StartInputStream() { if (inStream) Pa_StartStream(inStream); }
@@ -122,6 +124,10 @@ public:
     void StopOutputStream() { if (outStream) Pa_StopStream(outStream); };
     // DEBUG: original design for waiting audio stream to receive/send audio frames in portaudio callback, now use main loop instead
     void WaitStream(int timeout = 2000) { if (inStream || outStream) Pa_Sleep(timeout); };
+    
+    // signal frames for waveform display, should be the same with in/outBuffer
+    RingBuffer<float>* inFrames;
+    RingBuffer<float>* outFrames;
 
 protected:
     // make sure deconstruction will be done

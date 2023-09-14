@@ -527,6 +527,13 @@ Stretcher::PrepareInputBuffer(int channels, int blocks, size_t reserves) {
         inBuffer = nullptr;
     }
     inBuffer = new RingBuffer<float>(channels * blocks + reserves);
+    // DEBUG: im sleepy and have no idea good to it
+    if (inFrames) {
+        delete inFrames;
+        inFrames = nullptr;
+    }
+    auto samplerate = inInfo->defaultSampleRate;
+    inFrames = new RingBuffer<float>(channels * samplerate + reserves);
 }
 
 void
@@ -543,7 +550,8 @@ Stretcher::PrepareOutputBuffer(int channels, int blocks, size_t reserves) {
         outBuffer = nullptr;
     }
     outBuffer = new RingBuffer<float>(channels * blocks + reserves);
-
+    auto samplerate = outInfo->defaultSampleRate;
+    outFrames = new RingBuffer<float>(channels * samplerate + reserves);
 }
 
 void
@@ -1022,6 +1030,13 @@ Stretcher::inputAudioCallback(
             }*/
             pst->inBuffer->write(in, pst->inputChannels * frames);
         }
+        writable = pst->inFrames->getWriteSpace();
+        if (pst->inputChannels * frames > writable) {
+            cerr << "input buffer is full" << endl;
+        }
+        else {
+            pst->inFrames->write(in, pst->inputChannels * frames);
+        }
     }
 
     return paContinue;
@@ -1073,8 +1088,8 @@ Stretcher::outputAudioCallback(
 
 bool
 Stretcher::SetInputStream(int index, int *pSampleRate, int *pChannels) {
-
-    const PaDeviceInfo* inInfo = Pa_GetDeviceInfo(index);
+    // move to member pa dev ptr
+    inInfo = Pa_GetDeviceInfo(index);
     if (!inInfo) {
         cerr << "No device found at " << index << endl;
         return false;
@@ -1117,7 +1132,7 @@ Stretcher::SetInputStream(int index, int *pSampleRate, int *pChannels) {
 bool
 Stretcher::SetOutputStream(int index) {
 
-    const PaDeviceInfo* outInfo = Pa_GetDeviceInfo(index);
+    outInfo = Pa_GetDeviceInfo(index);
     if (!outInfo) {
         cerr << "No device found at " << index << endl;
         return false;

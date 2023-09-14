@@ -9,6 +9,9 @@
 #include <string>
 #include <sndfile.h>
 
+// for stretcher ringbuffer
+#include <src/common/RingBuffer.h>
+
 namespace GLUI {
 
 typedef struct AudioInfo {
@@ -68,6 +71,10 @@ class Waveform {
 public:
 	Waveform();
 	bool LoadAudioFile(std::string fileName, int* samplerate = nullptr, int* channels = nullptr, size_t* frames = nullptr, float** buf = nullptr);
+
+	void SetInputAudioInfo(int samplerate, int channels);
+	void SetInputFrame(RubberBand::RingBuffer<float>* frames);
+
 	/* return min and max value from frame buffer from offset during the length */
 	void GetRangeMinMax(int offset, int length, int frames, int channels, float* buf, int ch, float* maximum, float* minimum);
 	void ResampleAmplitudes(int width, double begin, double end, int samplerate, int frames, int channels, float* buf, int ch = 0);
@@ -78,7 +85,10 @@ public:
 protected:
 	virtual ~Waveform();
 private:
-	AudioInfo audio;
+	AudioInfo audioFile; // for LoadAudioFile
+	AudioInfo audioDevice; // for SetInputFrames from stretcher ring buffer
+	RubberBand::RingBuffer<float>* inFrames = nullptr;
+
 	bool wavPlotEnabled;
 	// for wavform zoom in/out on fill line plot
 	float wavPlotWidth;
