@@ -1,6 +1,12 @@
 #include "CtrlForm.h"
 #include "../imgui/imgui.h"
 #include "../imgui/imgui_internal.h"
+#include <vector>
+
+using std::vector;
+using PitchShifting::SourceDesc;
+
+vector<int> stre;
 
 GLUI::CtrlForm::CtrlForm(GLFWwindow* window) :
 	parentWindow(window),
@@ -10,6 +16,38 @@ GLUI::CtrlForm::CtrlForm(GLFWwindow* window) :
 
 GLUI::CtrlForm::~CtrlForm()
 {
+}
+
+vector<SourceDesc> inSrcList;
+int inSrcIndex = -1;
+SourceDesc inSrcItem;
+//TODO: considering given default selection is index of the LIST OR DEVICE?
+void GLUI::CtrlForm::SetInputSourceList(vector<SourceDesc> devices, int defaultSelection)
+{
+	inSrcList = devices;
+	
+	if (defaultSelection >= devices.size())
+		inSrcIndex = devices.size() > 0 ? 0 : -1;
+	else
+		inSrcIndex = defaultSelection;
+	if (defaultSelection >= 0)
+		inSrcItem = devices[defaultSelection];
+}
+
+vector<SourceDesc> outSrcList;
+int outSrcIndex = -1;
+SourceDesc outSrcItem;
+
+void GLUI::CtrlForm::SetOutputSourceList(vector<SourceDesc> devices, int defaultSelection)
+{
+	outSrcList = devices;
+
+	if (defaultSelection >= devices.size())
+		outSrcIndex = devices.size() > 0 ? 0 : -1;
+	else
+		outSrcIndex = defaultSelection;
+	if (defaultSelection >= 0)
+		outSrcItem = devices[defaultSelection];
 }
 
 bool world_check = false;
@@ -25,9 +63,37 @@ void GLUI::CtrlForm::Render()
 	//ImGui::GetStyle().WindowRounding = 4.f; // change style to the next control
 	ImGui::Begin(ctrlFormName, NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
 
+	if (ImGui::BeginCombo("Input Source", (!inSrcItem ? nullptr : inSrcItem.desc.c_str()))) {
+		for (int i = 0; i < inSrcList.size(); i++) {
+			const bool isSelected = (inSrcIndex == i);
+			if (ImGui::Selectable(inSrcList[i].desc.c_str(), inSrcIndex)) {
+				inSrcIndex = i;
+				inSrcItem = inSrcList[i];
+			}
+
+			if (isSelected) ImGui::SetItemDefaultFocus();
+		}
+		ImGui::EndCombo();
+	}
+
+	if (ImGui::BeginCombo("Output Source", (!outSrcItem ? nullptr : outSrcItem.desc.c_str()))) {
+		for (int i = 0; i < outSrcList.size(); i++) {
+			const bool isSelected = (outSrcIndex == i);
+			if (ImGui::Selectable(outSrcList[i].desc.c_str(), outSrcIndex)) {
+				outSrcIndex = i;
+				outSrcItem = outSrcList[i];
+			}
+
+			if (isSelected) ImGui::SetItemDefaultFocus();
+		}
+		ImGui::EndCombo();
+	}
+
 	if (ImGui::Button("hello")) {
 
 	}
+	ImGui::SameLine();
+	ImGui::Text("%d", inSrcIndex);
 	ImGui::SameLine();
 	if (ImGui::Checkbox("world", &world_check)) {
 

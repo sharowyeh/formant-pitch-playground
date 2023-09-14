@@ -22,8 +22,26 @@ using std::cerr;
 using std::endl;
 using RubberBand::RubberBandStretcher;
 using RubberBand::RingBuffer;
+using std::string;
 
 namespace PitchShifting {
+
+enum SourceType {
+    Unknown,
+    AudioFile,
+    AudioDevice,
+};
+struct SourceDesc {
+    SourceType type = SourceType::Unknown;
+    int index = -1;
+    string desc = "";
+    //TODO: or just given PaDeviceInfo...?
+    int inputChannels = 0;
+    int outputChannels = 0;
+    int sampleRate = 0;
+    // operands impl
+    inline bool operator!() const { return type == SourceType::Unknown || index == -1; }
+};
 
 class Stretcher {
 public:
@@ -90,7 +108,7 @@ public:
     void CloseFiles();
 
     // list audio devices via portaudio
-    void ListAudioDevices();
+    int ListAudioDevices(std::vector<SourceDesc>& devices);
     PaStreamCallback *debugCallback;
 
     PaStream *inStream;

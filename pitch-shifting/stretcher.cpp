@@ -5,11 +5,17 @@
 static void usleep(unsigned long usec) {
     ::Sleep(usec == 0 ? 0 : usec < 1000 ? 1 : usec / 1000);
 }
+// for cross-platform compile c runtime security issue
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define sprintf sprintf_s
+#endif
 // TODO: for std::max/min in cross-platform design
 // undefine minwindef.h min/max marco and use stl is considered
 #else
 #include <unistd.h>
 #endif
+
+using std::string;
 
 namespace PitchShifting {
 
@@ -947,8 +953,9 @@ Stretcher::CloseFiles() {
 }
 
 
-void
-Stretcher::ListAudioDevices() {
+int
+Stretcher::ListAudioDevices(std::vector<SourceDesc>& devices) {
+    devices.clear();
     // list host apis
     int num_apis = 0;
     num_apis = Pa_GetHostApiCount();
@@ -966,15 +973,25 @@ Stretcher::ListAudioDevices() {
     if (num_devices < 0) {
         err = (PaErrorCode)num_devices;
         cerr << "ERROR: Pa_CountDevices returned " << err << endl;
-        return;
+        return num_devices;
     }
 
     const PaDeviceInfo* dev_info;
     for (int i = 0; i < num_devices; i++) {
         dev_info = Pa_GetDeviceInfo(i);
-        cerr << "DEV " << i << " " << dev_info->name << " api:" << apis[dev_info->hostApi] << " ich:" << dev_info->maxInputChannels << " och:" << dev_info->maxOutputChannels;
-        cerr << " samplerate:" << dev_info->defaultSampleRate << endl;
+        char desc[512] = { 0 };
+        sprintf(desc, "%d:%s api:%s ich:%d och:%d samplerate:%.0f", i, dev_info->name, apis[dev_info->hostApi], dev_info->maxInputChannels, dev_info->maxOutputChannels, dev_info->defaultSampleRate);
+        cerr << "DEV " << i << " " << desc << endl;
+        devices.push_back({ // must follow up SourceDesc structure
+            SourceType::AudioDevice, 
+            i, 
+            desc, 
+            dev_info->maxInputChannels, 
+            dev_info->maxOutputChannels,
+            static_cast<int>(dev_info->defaultSampleRate)
+            });
     }
+    return num_devices;
 }
 
 int

@@ -21,6 +21,8 @@
 #include <string>
 
 #include "stretcher.hpp"
+using PitchShifting::SourceType;
+using PitchShifting::SourceDesc;
 
 // for rubberband profiler to dump signal process information,
 // get rubberband source code from github within same system installed version
@@ -55,12 +57,8 @@ using std::endl;
 //
 #include "parameters.h"
 
-enum DataSource {
-    SourceUnknown,
-    AudioFile,
-    AudioDevice
-};
-
+// for copy_if to select GUI ease of use datasets
+#include <algorithm>
 // for opengl gui
 #include "Window.hpp"
 #include "CtrlForm.h"
@@ -115,6 +113,11 @@ void debugGLwindow()
 
 int main(int argc, char **argv)
 {
+    //DEBUG: try calls ui on another thread
+    std::thread t(debugGLwindow);
+    t.detach();
+    
+
     auto p = new PitchShifting::Parameters(argc, argv);
     auto code = p->ParseOptions();
     if (code >= 0) return code;
@@ -159,20 +162,20 @@ int main(int argc, char **argv)
     bool pitchToFreq = freqMapFile.empty();
     sther->LoadFreqMap((pitchToFreq ? pitchMapFile : freqMapFile), pitchToFreq);
 
-    DataSource inSource = DataSource::SourceUnknown;
-    DataSource outSource = DataSource::SourceUnknown;
+    SourceType inSource = SourceType::Unknown;
+    SourceType outSource = SourceType::Unknown;
     std::string extIn, extOut;
     for (int i = strlen(inAudioParam); i > 0; ) {
         if (inAudioParam[--i] == '.') {
             extIn = inAudioParam + i + 1;
-            inSource = DataSource::AudioFile;
+            inSource = SourceType::AudioFile;
             break;
         }
     }
     for (int i = strlen(outAudioParam); i > 0; ) {
         if (outAudioParam[--i] == '.') {
             extOut = outAudioParam + i + 1;
-            outSource = DataSource::AudioFile;
+            outSource = SourceType::AudioFile;
             break;
         }
     }
@@ -196,12 +199,27 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    sther->ListAudioDevices();
+    std::vector<SourceDesc> devices;
+    int devCount = sther->ListAudioDevices(devices);
     // list audio device only
     if (listdev) {
         delete sther;
         return 0;
     }
+
+    //DEBUG: append list to control form
+    std::vector<SourceDesc> inputSources;
+    // use copy if selecting items to another vector
+    std::copy_if(devices.begin(), devices.end(), std::back_inserter(inputSources), [](SourceDesc& item) {
+        return item.inputChannels > 0;
+        });
+    ctrlForm->SetInputSourceList(inputSources);
+    
+    std::vector<SourceDesc> outputSources;
+    std::copy_if(devices.begin(), devices.end(), std::back_inserter(outputSources), [](SourceDesc& item) {
+        return item.outputChannels > 0;
+        });
+    ctrlForm->SetOutputSourceList(outputSources);
 
     // 0/2: mymacin48k, 9: mywinin44k(mme), 43: mywinin48k
     int inDevIndex = 43;
@@ -210,13 +228,13 @@ int main(int argc, char **argv)
     if (checkNumuric(inAudioParam, &inDevIndex)) {
         checkAudio = sther->SetInputStream(inDevIndex, &sampleRate, &channels);
         if (checkAudio) {
-            inSource = DataSource::AudioDevice;
+            inSource = SourceType::AudioDevice;
         }
     }
     if (checkNumuric(outAudioParam, &outDevIndex)) {
         checkAudio &= sther->SetOutputStream(outDevIndex);
         if (checkAudio) {
-            outSource = DataSource::AudioDevice;
+            outSource = SourceType::AudioDevice;
         }
     }
 
@@ -227,7 +245,7 @@ int main(int argc, char **argv)
     }
 
     // if use capture device as input, given duration or infinity -1?
-    if (inSource == DataSource::AudioDevice) {
+    if (inSource == SourceType::AudioDevice) {
         inputFrames = (int)INFINITE;//sampleRate * 3600 * 3; // 3hr for long duration test 
     }
 
@@ -290,7 +308,7 @@ int main(int argc, char **argv)
 
         sther->Create(sampleRate, channels, options, ratio, frequencyshift);
         
-        if (inSource == DataSource::AudioFile) {
+        if (inSource == SourceType::AudioFile) {
             sther->ExpectedInputDuration(inputFrames); // estimate from input file
         }
         sther->MaxProcessSize(defBlockSize);
@@ -340,7 +358,7 @@ int main(int argc, char **argv)
             }
 
             // show process percentage if input source is audio file(estimatable duration)
-            if (inSource == DataSource::AudioFile) {
+            if (inSource == SourceType::AudioFile) {
                 int p = int((double(frame) * 100.0) / inputFrames);
                 if (p > percent || frame == 0) {
                     percent = p;
