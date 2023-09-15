@@ -1,11 +1,26 @@
 #include "Waveform.h"
 
+#if defined(_WIN32) && !defined(_CRT_SECURE_NO_WARNINGS)
+#define sprintf sprintf_s
+#endif
+
+using std::string;
+
 namespace GLUI {
 
-Waveform::Waveform() {
+Waveform::Waveform(const char* post) {
+	postfix = post;
+	title = string("Waveform");
+	wavPlotEnableLabel = IdenticalLabel("Enable Wavfile Plot");
+	wavPlotTitle = IdenticalLabel("Wav");
+	wavPlotFittingLabel = IdenticalLabel(nullptr, "dummy");
+	realtimePlotEnableLabel = IdenticalLabel("Enable Realtime Plot");
+	realtimePlotTitle = IdenticalLabel(nullptr, "realtime");
+	realtimePlotRangeLabel = IdenticalLabel("Range");
+
 	audioFile = { 0 };
 	audioDevice = { 0 };
-	inFrames = nullptr;
+	frameBuffer = nullptr;
 
 	wavPlotEnabled = false;
 	wavPlotWidth = 0;
@@ -27,6 +42,15 @@ Waveform::~Waveform() {
 		delete audioDevice.Buffer;
 		audioDevice.Buffer = nullptr;
 	}
+}
+
+string Waveform::IdenticalLabel(const char* label, const char* id) {
+	string labelid;
+	if (label) labelid.append(label);
+	labelid.append("##");
+	if (id) labelid.append(id);
+	labelid.append(postfix);
+	return labelid;
 }
 
 bool Waveform::LoadAudioFile(std::string fileName, int* samplerate, int* channels, size_t* frames, float** buf) {
@@ -74,13 +98,13 @@ bool Waveform::LoadAudioFile(std::string fileName, int* samplerate, int* channel
 	return true;
 }
 
-void Waveform::SetInputAudioInfo(int samplerate, int channels) {
+void Waveform::SetDeviceInfo(int samplerate, int channels) {
 	audioDevice.SampleRate = samplerate;
 	audioDevice.Channels = channels;
 }
 
-void Waveform::SetInputFrame(RubberBand::RingBuffer<float>* frames) {
-	inFrames = frames;
+void Waveform::SetFrameBuffer(RubberBand::RingBuffer<float>* buffer) {
+	frameBuffer = buffer;
 
 	// audio info must have larger than 1 sec as temperary buffer for resampling
 	audioDevice.Frames = audioDevice.SampleRate;
@@ -134,16 +158,18 @@ void Waveform::ResampleAmplitudes(int width, double begin, double end, int sampl
 
 void Waveform::Update()
 {
-	ImGui::Begin("Waveform");
+	// NOTE: imgui support push/pop id for identification, but own design in ctor instead of rendering runtime
+	ImGui::Begin(title.c_str());
 	UpdateWavPlot();
 	//TODO: perf goes crazy cause plot chart resampling
 	UpdateRealtimeWavPlot();
 	ImGui::End();
+	//ImGui::PopID();
 }
 
 void Waveform::UpdateWavPlot()
 {
-	if (ImGui::Checkbox("Enable Wavfile Plot", &wavPlotEnabled)) {
+	if (ImGui::Checkbox(wavPlotEnableLabel.c_str(), &wavPlotEnabled)) {
 	}
 
 	if (wavPlotEnabled == false) return;
@@ -151,8 +177,8 @@ void Waveform::UpdateWavPlot()
 	// also reserve wav plot buffer for second audio channel(maximum only support 2 channels)
 	if (audioFile.Channels > 1 && wavPlotBuffer[1].capacity() == 0)
 		wavPlotBuffer[1].reserve(PLOT_WIDTH_MAX);
-
-	if (ImPlot::BeginPlot("wav", ImVec2(-1, 300))) {
+	
+	if (ImPlot::BeginPlot(wavPlotTitle.c_str(), ImVec2(-1, 300))) {
 		ImPlot::SetupAxes("time", "amp");
 		ImPlot::SetupAxisLimits(ImAxis_X1, 0, (audioFile.SampleRate) ? ((double)audioFile.Frames / audioFile.SampleRate) : 0);
 		ImPlot::SetupAxisLimits(ImAxis_Y1, -1, 1, ImPlotCond_Always); // fixed y-axis allows mouse control x-axis zoom, selection and scrolling
@@ -193,20 +219,20 @@ void Waveform::UpdateWavPlot()
 		ImPlot::SetNextLineStyle(ImVec4(0, 0, 0, 0));
 		float dx[2] = { 0.f, (audioFile.SampleRate) ? (float)audioFile.Frames / audioFile.SampleRate : 0.f };
 		float dy[2] = { -1.f, 1.f };
-		ImPlot::PlotLine("##dummy", dx, dy, 2);
+		ImPlot::PlotLine(wavPlotFittingLabel.c_str(), dx, dy, 2);
 		ImPlot::EndPlot();
 	}
 }
 
 void Waveform::UpdateRealtimeWavPlot()
 {
-	if (ImGui::Checkbox("Enable Realtime Plot", &realtimePlotEnabled) == false) {
+	if (ImGui::Checkbox(realtimePlotEnableLabel.c_str(), &realtimePlotEnabled) == false) {
 	}
 
 	if (realtimePlotEnabled == false) return;
 
 	// makes sure input device has been initialized (by SetInputAudioInfo and SetInputFrame
-	if (audioDevice.SampleRate == 0 || audioDevice.Channels == 0 || inFrames == nullptr) return;
+	if (audioDevice.SampleRate == 0 || audioDevice.Channels == 0 || frameBuffer == nullptr) return;
 
 	// realtimeBuffer[n] has owned struct ctor with default size, just use it as well
 
@@ -218,7 +244,7 @@ void Waveform::UpdateRealtimeWavPlot()
 	// NOTE: for variable size of audio stream device via ring buffer, may only focus sampleCnt and readable size
 	//   retrieve ring buffer to our continuous temperary buffer for plot chart resampling
 	//   the `readable` number is samples * channels
-	int readable = inFrames->getReadSpace();
+	int readable = frameBuffer->getReadSpace();
 	if (readable < sampleCnt * audioDevice.Channels) {
 		//TODO: plot is works but seems not stable in reading
 		std::cout << "readable:" << readable << " is less than required sample cnt:" << sampleCnt << " chs:" << audioDevice.Channels << std::endl;
@@ -226,9 +252,9 @@ void Waveform::UpdateRealtimeWavPlot()
 	if (readable > audioDevice.Frames * audioDevice.Channels) { /* Frames = SampleRate, refer to SetInputFrame */
 		std::cout << "readable:" << readable << " is large than temperary buffer:" << audioDevice.Frames << " chs:" << audioDevice.Channels << std::endl;
 		//TODO: if ring buffer is too large to temperary buffer, drop frames
-		inFrames->read(audioDevice.Buffer, audioDevice.Frames * audioDevice.Channels);
+		frameBuffer->read(audioDevice.Buffer, audioDevice.Frames * audioDevice.Channels);
 	}
-	inFrames->read(audioDevice.Buffer, readable);
+	frameBuffer->read(audioDevice.Buffer, readable);
 	int frames = readable / audioDevice.Channels;
 	for (int ch = 0; ch < audioDevice.Channels; ch++) {
 		if (ch > 1) break;
@@ -241,9 +267,9 @@ void Waveform::UpdateRealtimeWavPlot()
 		realtimeBuffer[ch].PushBack(currentTime, positive, negative);
 	}
 
-	ImGui::SliderFloat("Range", &elapsedRange, 0.5f, 5.f, "%.1f s");
+	ImGui::SliderFloat(realtimePlotRangeLabel.c_str(), &elapsedRange, 0.5f, 5.f, "%.1f s");
 	
-	if (ImPlot::BeginPlot("##wavrealtime", ImVec2(-1, 300))) {
+	if (ImPlot::BeginPlot(realtimePlotTitle.c_str(), ImVec2(-1, 300))) {
 		ImPlot::SetupAxes("amp", "time");
 		ImPlot::SetupAxisLimits(ImAxis_X1, currentTime - elapsedRange, currentTime, ImGuiCond_Always);
 		ImPlot::SetupAxisLimits(ImAxis_Y1, -1, 1, ImGuiCond_Always);

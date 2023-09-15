@@ -1030,9 +1030,10 @@ Stretcher::inputAudioCallback(
             }*/
             pst->inBuffer->write(in, pst->inputChannels * frames);
         }
+        //DEBUG: write to frame buffer for GUI rendering
         writable = pst->inFrames->getWriteSpace();
         if (pst->inputChannels * frames > writable) {
-            cerr << "input buffer is full" << endl;
+            cerr << "input buffer is full - GUI" << endl;
         }
         else {
             pst->inFrames->write(in, pst->inputChannels * frames);
@@ -1080,6 +1081,15 @@ Stretcher::outputAudioCallback(
             cerr << "output buffer is not enough" << endl;
         } else {
             pst->outBuffer->read(out, pst->outputChannels * frames);
+
+            //DEBUG: write to frame buffer for GUI rendering
+            int writable = pst->outFrames->getWriteSpace();
+            if (pst->outputChannels * frames > writable) {
+                cerr << "output buffer is full - GUI" << endl;
+            }
+            else {
+                pst->outFrames->write(out, pst->outputChannels * frames);
+            }
         }
     }
 

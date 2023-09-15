@@ -69,11 +69,15 @@ typedef struct AmplitudeBuffer {
 
 class Waveform {
 public:
-	Waveform();
+	//DEBUG given pre/postfix or PushID(?not work on implot) for gui identification
+	Waveform(const char* postfix);
+	/* load audio file to get audio info and read buffer for plot chart drawing */
 	bool LoadAudioFile(std::string fileName, int* samplerate = nullptr, int* channels = nullptr, size_t* frames = nullptr, float** buf = nullptr);
-
-	void SetInputAudioInfo(int samplerate, int channels);
-	void SetInputFrame(RubberBand::RingBuffer<float>* frames);
+	
+	/* given audio device info as rendering property */
+	void SetDeviceInfo(int samplerate, int channels);
+	/* given ring buffer from PA device callback in stretcher  */
+	void SetFrameBuffer(RubberBand::RingBuffer<float>* buffer);
 
 	/* return min and max value from frame buffer from offset during the length */
 	void GetRangeMinMax(int offset, int length, int frames, int channels, float* buf, int ch, float* maximum, float* minimum);
@@ -85,9 +89,20 @@ public:
 protected:
 	virtual ~Waveform();
 private:
+	const char* postfix; // postfix for GUI componment identification
+	std::string IdenticalLabel(const char* label, const char* id = nullptr);
+	// for identical labels
+	std::string title;
+	std::string wavPlotEnableLabel;
+	std::string wavPlotTitle;
+	std::string wavPlotFittingLabel;
+	std::string realtimePlotEnableLabel;
+	std::string realtimePlotRangeLabel;
+	std::string realtimePlotTitle;
+
 	AudioInfo audioFile; // for LoadAudioFile
 	AudioInfo audioDevice; // for SetInputFrames from stretcher ring buffer
-	RubberBand::RingBuffer<float>* inFrames = nullptr;
+	RubberBand::RingBuffer<float>* frameBuffer = nullptr; // frames ring buffer from stretcher
 
 	bool wavPlotEnabled;
 	// for wavform zoom in/out on fill line plot
@@ -95,12 +110,14 @@ private:
 	double wavPlotBegin;
 	double wavPlotEnd;
 	ImVector<Amplitude> wavPlotBuffer[2];
+
 	// for realtime plot
 	bool realtimePlotEnabled;
 	float currentTime;
 	float elapsedRange;
-	// maximum support 2 channels
+	// maximum support 2 channels store plot points for realtime chart drawing
 	AmplitudeBuffer realtimeBuffer[2];
+
 }; // class
 
 } // namespace

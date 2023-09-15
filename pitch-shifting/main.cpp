@@ -68,7 +68,8 @@ using std::endl;
 GLUI::Window* window = nullptr;
 GLUI::CtrlForm* ctrlForm = nullptr;
 GLUI::TimeoutPopup* leavePopup = nullptr;
-GLUI::Waveform* waveform = nullptr;
+GLUI::Waveform* inWaveform = nullptr;
+GLUI::Waveform* outWaveform = nullptr;
 
 //TODO: not integrate to main yet
 void debugGLwindow()
@@ -94,16 +95,18 @@ void debugGLwindow()
         // exit message loop to close main window
         glfwSetWindowShouldClose(window->GetGlfwWindow(), 1);
     };
-    waveform = new GLUI::Waveform();
+    inWaveform = new GLUI::Waveform("in");
+    outWaveform = new GLUI::Waveform("out");
     // DEBUG: read my debug audio
-    waveform->LoadAudioFile("debug.wav");
+    inWaveform->LoadAudioFile("debug.wav");
     while (!window->PrepareFrame()) {
         // just because want curvy corner, must pair with PopStyleVar() restore style changes for rendering loop
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 4.f);
 
         ctrlForm->Render();
         leavePopup->Render();
-        waveform->Update();
+        inWaveform->Update();
+        outWaveform->Update();
         
         ImGui::PopStyleVar();
         window->SwapWindow();
@@ -250,13 +253,16 @@ int main(int argc, char **argv)
     }
 
     //DEBUG: since GUI init in another thread, ensure all GUI are ready
-    while (!waveform) {
+    while (!inWaveform) {
         Sleep(100);
     }
     //DEBUG: set audio information to GUI plot
-    waveform->SetInputAudioInfo(sampleRate, channels);
+    inWaveform->SetDeviceInfo(sampleRate, channels);
     //DEBUG: inputFrames must afterward sther->SetInputStream for ring buffer initialization
-    waveform->SetInputFrame(sther->inFrames);
+    inWaveform->SetFrameBuffer(sther->inFrames);
+    //DEBUG: try output device
+    outWaveform->SetDeviceInfo(sther->outInfo->defaultSampleRate, sther->outInfo->maxOutputChannels);
+    outWaveform->SetFrameBuffer(sther->outFrames);
 
     RubberBandStretcher::Options options = 0;
     options = sther->SetOptions(finer, realtime, typewin, smoothing, formant,
