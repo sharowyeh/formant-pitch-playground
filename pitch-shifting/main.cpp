@@ -64,18 +64,20 @@ using std::endl;
 #include "CtrlForm.h"
 #include "TimeoutPopup.h"
 #include "Waveform.h"
+#include "RealTimePlot.h"
 
 GLUI::Window* window = nullptr;
 GLUI::CtrlForm* ctrlForm = nullptr;
 GLUI::TimeoutPopup* leavePopup = nullptr;
-GLUI::Waveform* inWaveform = nullptr;
-GLUI::Waveform* outWaveform = nullptr;
+GLUI::Waveform* fileWaveform = nullptr;
+GLUI::RealTimePlot* inWaveform = nullptr;
+GLUI::RealTimePlot* outWaveform = nullptr;
 
 //TODO: not integrate to main yet
 void debugGLwindow()
 {
     //DEBUG: try init gui window here
-    window = GLUI::Window::Create("Rubberband GUI", 1280, 720);
+    window = GLUI::Window::Create("Rubberband GUI", 1366, 768);
     window->OnRenderFrame = [](GLUI::Window* wnd) {
         // is the same afterward the window->PrepareFrame()
     };
@@ -95,16 +97,18 @@ void debugGLwindow()
         // exit message loop to close main window
         glfwSetWindowShouldClose(window->GetGlfwWindow(), 1);
     };
-    inWaveform = new GLUI::Waveform("in");
-    outWaveform = new GLUI::Waveform("out");
+    fileWaveform = new GLUI::Waveform("");
+    inWaveform = new GLUI::RealTimePlot("in");
+    outWaveform = new GLUI::RealTimePlot("out");
     // DEBUG: read my debug audio
-    inWaveform->LoadAudioFile("debug.wav");
+    fileWaveform->LoadAudioFile("debug.wav");
     while (!window->PrepareFrame()) {
         // just because want curvy corner, must pair with PopStyleVar() restore style changes for rendering loop
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 4.f);
 
         ctrlForm->Render();
         leavePopup->Render();
+        fileWaveform->Update();
         inWaveform->Update();
         outWaveform->Update();
         
@@ -253,7 +257,7 @@ int main(int argc, char **argv)
     }
 
     //DEBUG: since GUI init in another thread, ensure all GUI are ready
-    while (!inWaveform) {
+    while (!fileWaveform) {
         Sleep(100);
     }
     //DEBUG: set audio information to GUI plot
