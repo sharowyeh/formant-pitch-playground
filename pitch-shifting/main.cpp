@@ -5,7 +5,7 @@
 // to get to know further rubberband source code details, wonder to participate with 
 // rubberband-library visual studio project, but still has more glitch than meson build
 // (should be the compiler options issue...)
-#if _DEBUG
+#if NDEBUG
 // build by meson
 #pragma comment(lib, "rubberband.lib")
 #else
@@ -123,7 +123,7 @@ int main(int argc, char **argv)
     //DEBUG: try calls ui on another thread
     std::thread t(debugGLwindow);
     t.detach();
-    
+
 
     auto p = new PitchShifting::Parameters(argc, argv);
     auto code = p->ParseOptions();
@@ -326,7 +326,8 @@ int main(int argc, char **argv)
         successful = true;
 
         sther->Create(sampleRate, channels, options, ratio, frequencyshift);
-        
+        //auto trytry = sther->GetChannelData();
+        //std::cout << "got channel data: " << trytry << " even it's struct but has complex param/function" << std::endl;
         if (inSource == SourceType::AudioFile) {
             sther->ExpectedInputDuration(inputFrames); // estimate from input file
         }

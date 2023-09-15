@@ -1,4 +1,10 @@
 #pragma once
+// for cross-platform using std::min/max on rubberband source code, consistent from stl instead of windows marco
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#endif
 #include "rubberband/RubberBandStretcher.h"
 #include <iostream>
 #pragma comment(lib, "sndfile.lib")
@@ -126,6 +132,9 @@ public:
     // signal frames for waveform display, should be the same with in/outBuffer
     RingBuffer<float>* inFrames;
     RingBuffer<float>* outFrames;
+
+    //DEBUG: try pointer of std::vector<std::shared_ptr<R3Stretcher::ChannelData>>
+    void* GetChannelData();
 
 protected:
     // make sure deconstruction will be done
