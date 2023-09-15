@@ -72,15 +72,19 @@ void GLUI::RealTimePlot::UpdateRealtimeWavPlot() {
 	// NOTE: for variable size of audio stream device via ring buffer, may only focus sampleCnt and readable size
 	//   retrieve ring buffer to our continuous temperary buffer for plot chart resampling
 	//   the `readable` number is samples * channels
+	// NOTE: based on frame size of port audio callback was set by Stretcher::defaultBlockSize (for FFT),
+	//   each frame slices are always block size(1024) * channels(2) = 2048
+	//   the GUI refresh rate can very, depends on performance that may not regularly consume audio frame from the buffer
 	int readable = frameBuffer->getReadSpace();
+	while (readable > sampleCnt * audioDevice.Channels) {
+		// drop frames, TODO: or keep double buffer?
+		frameBuffer->read(audioDevice.Buffer, readable - sampleCnt * audioDevice.Channels);
+		std::cout << "drop GUI frames readable:" << readable << " required sample cnt:" << sampleCnt << " chs:" << audioDevice.Channels << std::endl;
+		readable = frameBuffer->getReadSpace();
+	}
 	if (readable < sampleCnt * audioDevice.Channels) {
 		//TODO: plot is works but seems not stable in reading
 		std::cout << "readable:" << readable << " is less than required sample cnt:" << sampleCnt << " chs:" << audioDevice.Channels << std::endl;
-	}
-	if (readable > audioDevice.Frames * audioDevice.Channels) { /* Frames = SampleRate, refer to SetInputFrame */
-		std::cout << "readable:" << readable << " is large than temperary buffer:" << audioDevice.Frames << " chs:" << audioDevice.Channels << std::endl;
-		//TODO: if ring buffer is too large to temperary buffer, drop frames
-		frameBuffer->read(audioDevice.Buffer, audioDevice.Frames * audioDevice.Channels);
 	}
 	frameBuffer->read(audioDevice.Buffer, readable);
 	int frames = readable / audioDevice.Channels;
