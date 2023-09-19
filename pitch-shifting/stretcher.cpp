@@ -85,12 +85,12 @@ Stretcher::~Stretcher() {
     dispose();
 }
 
-//void* Stretcher::GetChannelData()
-//{
-//    auto data = pts->getChannelData(0);
-//    //auto cd = static_cast<std::vector<std::shared_ptr<RubberBand::R3Stretcher::ChannelData>>*>(data);
-//    return data;
-//}
+void* Stretcher::GetChannelData()
+{
+    auto data = pts->getChannelData(0);
+    //auto cd = static_cast<std::vector<std::shared_ptr<RubberBand::R3Stretcher::ChannelData>>*>(data);
+    return data;
+}
 
 void
 Stretcher::dispose() {

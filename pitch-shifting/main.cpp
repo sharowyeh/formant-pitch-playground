@@ -326,8 +326,8 @@ int main(int argc, char **argv)
         successful = true;
 
         sther->Create(sampleRate, channels, options, ratio, frequencyshift);
-        //auto trytry = sther->GetChannelData();
-        //std::cout << "got channel data: " << trytry << " even it's struct but has complex param/function" << std::endl;
+        auto trytry = sther->GetChannelData();
+        std::cout << "got channel data: " << trytry << " even it's struct but has complex param/function" << std::endl;
         if (inSource == SourceType::AudioFile) {
             sther->ExpectedInputDuration(inputFrames); // estimate from input file
         }
