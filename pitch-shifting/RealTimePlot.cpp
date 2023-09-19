@@ -75,16 +75,23 @@ void GLUI::RealTimePlot::UpdateRealtimeWavPlot() {
 	// NOTE: based on frame size of port audio callback was set by Stretcher::defaultBlockSize (for FFT),
 	//   each frame slices are always block size(1024) * channels(2) = 2048
 	//   the GUI refresh rate can very, depends on performance that may not regularly consume audio frame from the buffer
+	// NOTE: be awared the dragging GUI also affact GUI refresh rate, that impact to the frame buffering too 
 	int readable = frameBuffer->getReadSpace();
-	while (readable > sampleCnt * audioDevice.Channels) {
-		// GUI refresh rate may higher than audio output frame rate, that required sample count will be less than readable frame
-		int dropped = frameBuffer->read(audioDevice.Buffer, readable - sampleCnt * audioDevice.Channels);
-		readable = frameBuffer->getReadSpace();
-		std::cout << "required sample:" << sampleCnt << " chs:" << audioDevice.Channels << " drop:" << dropped << " readable:" << readable << std::endl;
+	//DEBUG: not drop frame, keep to next GUI refresh consuming buffer
+	if (readable > sampleCnt * audioDevice.Channels) {
+		std::cout << "required sample:" << sampleCnt << " chs:" << audioDevice.Channels << " readable:" << readable << std::endl;
+		readable = sampleCnt * audioDevice.Channels;
 	}
+	//while (readable > sampleCnt * audioDevice.Channels) {
+	//	// GUI refresh rate may higher than audio output frame rate, that required sample count will be less than readable frame
+	//	int dropped = frameBuffer->read(audioDevice.Buffer, readable - sampleCnt * audioDevice.Channels);
+	//	readable = frameBuffer->getReadSpace();
+	//	//TODO: temparary ignore warnings because it's really annoying
+	//	//std::cout << "required sample:" << sampleCnt << " chs:" << audioDevice.Channels << " drop:" << dropped << " readable:" << readable << std::endl;
+	//}
 	if (readable < sampleCnt * audioDevice.Channels) {
-		//TODO: plot is works but seems not stable in reading
-		//std::cout << "readable:" << readable << " is less than required sample cnt:" << sampleCnt << " chs:" << audioDevice.Channels << std::endl;
+		//TODO: temparary ignore warnings because it's really annoying
+		std::cout << "readable:" << readable << " is less than required sample cnt:" << sampleCnt << " chs:" << audioDevice.Channels << std::endl;
 	}
 	frameBuffer->read(audioDevice.Buffer, readable);
 	int frames = readable / audioDevice.Channels;

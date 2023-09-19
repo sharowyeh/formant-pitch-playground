@@ -35,6 +35,8 @@
 #include <condition_variable>
 #include <deque>
 #include "src/common/RingBuffer.h"
+// for ChannelData struct
+#include <src/finer/R3Stretcher.h>
 
 using std::cerr;
 using std::endl;
@@ -141,12 +143,15 @@ public:
     // DEBUG: original design for waiting audio stream to receive/send audio frames in portaudio callback, now use main loop instead
     void WaitStream(int timeout = 2000) { if (inStream || outStream) Pa_Sleep(timeout); };
     
-    // signal frames for waveform display, should be the same with in/outBuffer
+    //DEBUG: signal frames for waveform display, should be the same with in/outBuffer, so far i give it 1 sec buffer size
+    //TODO: i think these GUI buffers are better initilize from GUI, and given to this class to fillout
+    //TODO: can use atomic flag for GUI prevent GUI reading buffer to block buffer appending...? not good
     RingBuffer<float>* inFrames;
     RingBuffer<float>* outFrames;
 
     //DEBUG: try pointer of std::vector<std::shared_ptr<R3Stretcher::ChannelData>>
     void* GetChannelData();
+    int GetFormantFFTSize();
 
 protected:
     // make sure deconstruction will be done

@@ -15,6 +15,9 @@ static void usleep(unsigned long usec) {
 #include <unistd.h>
 #endif
 
+//DEBUG for channel data from rubber band
+#include <src/finer/R3Stretcher.h>
+
 using std::string;
 
 namespace PitchShifting {
@@ -88,8 +91,17 @@ Stretcher::~Stretcher() {
 void* Stretcher::GetChannelData()
 {
     auto data = pts->getChannelData(0);
-    //auto cd = static_cast<std::vector<std::shared_ptr<RubberBand::R3Stretcher::ChannelData>>*>(data);
+    auto pcd = static_cast<std::shared_ptr<RubberBand::R3Stretcher::ChannelData>*>(data);
+    auto cd = *pcd;
     return data;
+}
+
+int Stretcher::GetFormantFFTSize()
+{
+    auto data = pts->getChannelData(0);
+    auto pcd = static_cast<std::shared_ptr<RubberBand::R3Stretcher::ChannelData>*>(data);
+    auto cd = *pcd;
+    return cd->formant->fftSize;
 }
 
 void
@@ -1022,7 +1034,7 @@ Stretcher::inputAudioCallback(
     float *in = (float*)inBuffer;
     // TODO: may quick check levels to drop frames prevent too many input can't process immediately
     {
-        std::lock_guard<std::mutex> lock(pst->inMutex);
+        std::lock_guard<std::mutex> lock(pst->inMutex); // automatically unlock when exit the code scope
         // cerr << "!!! Write in chunks " << pst->inChunks.size() << endl;
         // auto tmp = new float[frames * pst->inputChannels];
         // memcpy(tmp, in, sizeof(float) * frames * pst->inputChannels);
@@ -1038,12 +1050,8 @@ Stretcher::inputAudioCallback(
             pst->inBuffer->write(in, pst->inputChannels * frames);
         }
     }
-    //DEBUG: write to frame buffer for GUI rendering
-    auto writable = pst->inFrames->getWriteSpace();
-    if (pst->inputChannels * frames > writable) {
-        cerr << "input buffer is full - GUI" << endl;
-    }
-    else {
+    //DEBUG: write to frame buffer for GUI rendering, i decide to ignore anything if buffer is full
+    if (pst->inputChannels * frames < pst->inFrames->getWriteSpace()) {
         pst->inFrames->write(in, pst->inputChannels * frames);
     }
 
@@ -1064,7 +1072,7 @@ Stretcher::outputAudioCallback(
     float *out = (float*)outBuffer;
 
     {
-        std::lock_guard<std::mutex> lock(pst->outMutex);
+        std::lock_guard<std::mutex> lock(pst->outMutex); // automatically unlock when exit the code scope
 
         // cerr << "!!! Read out chunks " << pst->outChunks.size() << endl;
         // if (pst->outDelayFrames > 0) {
@@ -1090,12 +1098,8 @@ Stretcher::outputAudioCallback(
             pst->outBuffer->read(out, pst->outputChannels * frames);
         }
     }
-    //DEBUG: write to frame buffer for GUI rendering
-    int writable = pst->outFrames->getWriteSpace();
-    if (pst->outputChannels * frames > writable) {
-        cerr << "output buffer is full - GUI" << endl;
-    }
-    else {
+    //DEBUG: write to frame buffer for GUI rendering, i decide to ignore anything if buffer is full
+    if (pst->outputChannels * frames < pst->outFrames->getWriteSpace()) {
         pst->outFrames->write(out, pst->outputChannels * frames);
     }
 
