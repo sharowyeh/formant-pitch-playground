@@ -12,7 +12,7 @@ GLUI::RealTimePlot::RealTimePlot(const char* posfix) : PlotChartBase(posfix) {
 	audioDevice = { 0 };
 	frameBuffer = nullptr;
 
-	realtimePlotEnabled = false;
+	realtimePlotEnabled = true;
 	currentTime = 0;
 	elapsedRange = 5.f;
 }
@@ -77,10 +77,10 @@ void GLUI::RealTimePlot::UpdateRealtimeWavPlot() {
 	//   the GUI refresh rate can very, depends on performance that may not regularly consume audio frame from the buffer
 	int readable = frameBuffer->getReadSpace();
 	while (readable > sampleCnt * audioDevice.Channels) {
-		// drop frames, TODO: or keep double buffer?
-		frameBuffer->read(audioDevice.Buffer, readable - sampleCnt * audioDevice.Channels);
-		std::cout << "drop GUI frames readable:" << readable << " required sample cnt:" << sampleCnt << " chs:" << audioDevice.Channels << std::endl;
+		// GUI refresh rate may higher than audio output frame rate, that required sample count will be less than readable frame
+		int dropped = frameBuffer->read(audioDevice.Buffer, readable - sampleCnt * audioDevice.Channels);
 		readable = frameBuffer->getReadSpace();
+		std::cout << "required sample:" << sampleCnt << " chs:" << audioDevice.Channels << " drop:" << dropped << " readable:" << readable << std::endl;
 	}
 	if (readable < sampleCnt * audioDevice.Channels) {
 		//TODO: plot is works but seems not stable in reading
