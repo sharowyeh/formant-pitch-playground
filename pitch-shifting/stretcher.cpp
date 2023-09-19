@@ -85,12 +85,12 @@ Stretcher::~Stretcher() {
     dispose();
 }
 
-void* Stretcher::GetChannelData()
-{
-    auto data = pts->getChannelData(0);
-    //auto cd = static_cast<std::vector<std::shared_ptr<RubberBand::R3Stretcher::ChannelData>>*>(data);
-    return data;
-}
+//void* Stretcher::GetChannelData()
+//{
+//    auto data = pts->getChannelData(0);
+//    //auto cd = static_cast<std::vector<std::shared_ptr<RubberBand::R3Stretcher::ChannelData>>*>(data);
+//    return data;
+//}
 
 void
 Stretcher::dispose() {
@@ -1037,14 +1037,14 @@ Stretcher::inputAudioCallback(
             }*/
             pst->inBuffer->write(in, pst->inputChannels * frames);
         }
-        //DEBUG: write to frame buffer for GUI rendering
-        writable = pst->inFrames->getWriteSpace();
-        if (pst->inputChannels * frames > writable) {
-            cerr << "input buffer is full - GUI" << endl;
-        }
-        else {
-            pst->inFrames->write(in, pst->inputChannels * frames);
-        }
+    }
+    //DEBUG: write to frame buffer for GUI rendering
+    auto writable = pst->inFrames->getWriteSpace();
+    if (pst->inputChannels * frames > writable) {
+        cerr << "input buffer is full - GUI" << endl;
+    }
+    else {
+        pst->inFrames->write(in, pst->inputChannels * frames);
     }
 
     return paContinue;
@@ -1088,16 +1088,15 @@ Stretcher::outputAudioCallback(
             cerr << "output buffer is not enough" << endl;
         } else {
             pst->outBuffer->read(out, pst->outputChannels * frames);
-
-            //DEBUG: write to frame buffer for GUI rendering
-            int writable = pst->outFrames->getWriteSpace();
-            if (pst->outputChannels * frames > writable) {
-                cerr << "output buffer is full - GUI" << endl;
-            }
-            else {
-                pst->outFrames->write(out, pst->outputChannels * frames);
-            }
         }
+    }
+    //DEBUG: write to frame buffer for GUI rendering
+    int writable = pst->outFrames->getWriteSpace();
+    if (pst->outputChannels * frames > writable) {
+        cerr << "output buffer is full - GUI" << endl;
+    }
+    else {
+        pst->outFrames->write(out, pst->outputChannels * frames);
     }
 
     return paContinue;

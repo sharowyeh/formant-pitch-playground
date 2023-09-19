@@ -134,7 +134,7 @@ public:
     RingBuffer<float>* outFrames;
 
     //DEBUG: try pointer of std::vector<std::shared_ptr<R3Stretcher::ChannelData>>
-    void* GetChannelData();
+    void* GetChannelData() { return nullptr; };
 
 protected:
     // make sure deconstruction will be done
