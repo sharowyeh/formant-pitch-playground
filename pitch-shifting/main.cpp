@@ -1,17 +1,7 @@
 /* -*- c-basic-offset: 4 indent-tabs-mode: nil -*-  vi:set ts=8 sts=4 sw=4: */
 
 /* source code from rubberband repo, modify its demo console app as alt project */
-
-// to get to know further rubberband source code details, wonder to participate with 
-// rubberband-library visual studio project, but still has more glitch than meson build
-// (should be the compiler options issue...)
-#if NDEBUG
-// build by meson
-#pragma comment(lib, "rubberband.lib")
-#else
-// build by visual studio project
-#pragma comment(lib, "rubberband-library.lib")
-#endif
+/* NOTE: based on rubberband features have been moved to stretcher class, also move lib dependency to stretcher.hpp */
 
 #include <iostream>
 #include <cmath>

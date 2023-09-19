@@ -1,4 +1,16 @@
 #pragma once
+
+// to get to know further rubberband source code details, wonder to participate with 
+// rubberband-library visual studio project, but still has more glitch than meson build
+// (should be the compiler options issue...)
+#if NDEBUG
+// build by meson
+#pragma comment(lib, "rubberband.lib")
+#else
+// build by visual studio project
+#pragma comment(lib, "rubberband-library.lib")
+#endif
+
 // for cross-platform using std::min/max on rubberband source code, consistent from stl instead of windows marco
 #ifdef _WIN32
 #ifndef NOMINMAX
