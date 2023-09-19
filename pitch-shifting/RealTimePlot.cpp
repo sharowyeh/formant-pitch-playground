@@ -84,7 +84,7 @@ void GLUI::RealTimePlot::UpdateRealtimeWavPlot() {
 	}
 	if (readable < sampleCnt * audioDevice.Channels) {
 		//TODO: plot is works but seems not stable in reading
-		std::cout << "readable:" << readable << " is less than required sample cnt:" << sampleCnt << " chs:" << audioDevice.Channels << std::endl;
+		//std::cout << "readable:" << readable << " is less than required sample cnt:" << sampleCnt << " chs:" << audioDevice.Channels << std::endl;
 	}
 	frameBuffer->read(audioDevice.Buffer, readable);
 	int frames = readable / audioDevice.Channels;
