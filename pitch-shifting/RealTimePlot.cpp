@@ -82,7 +82,8 @@ void GLUI::RealTimePlot::UpdateRealtimeWavPlot() {
 		//std::cout << "readable:" << readable << " is less than required sample cnt:" << sampleCnt << " chs:" << audioDevice.Channels << std::endl;
 	}
 	//TODO: since change to use single frame buffer, it has poor sampling graph(may cause by memory leak...)
-	memcpy_s(audioDevice.Buffer, readable, framePtr, readable);
+	//TODO: try to use stretcher buffer directly...
+	//memcpy_s(audioDevice.Buffer, readable, framePtr, readable);
 	int frames = readable / audioDevice.Channels;
 	for (int ch = 0; ch < audioDevice.Channels; ch++) {
 		if (ch > 1) break;
@@ -90,7 +91,7 @@ void GLUI::RealTimePlot::UpdateRealtimeWavPlot() {
 		float negative = 0.f;
 
 		if (frames > 0) {
-			GetRangeMinMax(0, sampleCnt, frames, audioDevice.Channels, audioDevice.Buffer, ch, &positive, &negative);
+			GetRangeMinMax(0, sampleCnt, frames, audioDevice.Channels, framePtr/*audioDevice.Buffer*/, ch, &positive, &negative);
 		}
 		realtimeBuffer[ch].PushBack(currentTime, positive, negative);
 	}
