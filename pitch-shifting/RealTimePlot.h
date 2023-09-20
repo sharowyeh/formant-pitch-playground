@@ -8,10 +8,10 @@ class RealTimePlot : public PlotChartBase {
 public:
 	RealTimePlot(const char* posfix);
 
-	/* given audio device info as rendering property */
-	void SetDeviceInfo(int samplerate, int channels);
-	/* given ring buffer from PA device callback in stretcher  */
-	void SetFrameBuffer(RubberBand::RingBuffer<float>* buffer);
+	/* given audio information from stretcher, assign to audioDevice and drawing buffer allocation
+	 * NOTE: framePtr/ptrSize => frame buffer ptr and its size from port audio callback in stretcher class
+	 */
+	void SetAudioInfo(int samplerate, int channels, float* framePtr, int ptrSize);
 
 	void Update();
 	void UpdateRealtimeWavPlot(); // time-amp plot scrolling on short time window
@@ -25,8 +25,14 @@ private:
 	std::string realtimePlotRangeLabel;
 	std::string realtimePlotTitle;
 
-	AudioInfo audioDevice; // for SetInputFrames from stretcher ring buffer
-	RubberBand::RingBuffer<float>* frameBuffer = nullptr; // frames ring buffer from stretcher
+	// for audio frame drawing on GUI
+	AudioInfo audioDevice;
+	// NOTE: decide to use the dirty way getting signal data from pa audio callback in stretcher class,
+	//   'cause easiest way prevent blocking device callback or increasing effort on stretcher processing 
+	const float* framePtr = nullptr;
+	// NOTE: in this project, audio frame size is fixed number by default FFT block size, refer to sther->defBlockSize
+	//   the frame pointer size will be defBlockSize * channels
+	int framePtrSize = 0;
 
 	// for realtime plot
 	bool realtimePlotEnabled;

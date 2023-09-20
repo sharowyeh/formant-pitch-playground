@@ -61,6 +61,8 @@ Stretcher::Stretcher(int defBlockSize, int debugLevel) {
     sndfileIn = nullptr;
     sndfileOut = nullptr;
 
+    inputSampleRate = 0;
+    outputSampleRate = 0;
     inputChannels = 0;
     outputChannels = 0;
     Stretcher::defBlockSize = defBlockSize;
@@ -72,6 +74,11 @@ Stretcher::Stretcher(int defBlockSize, int debugLevel) {
     debugInMaxVal = 0.f;
     inGain = 1.f;
 
+    inFrame = nullptr;
+    outFrame = nullptr;
+    //inFrames = nullptr;
+    //outFrames = nullptr;
+    
     // we need channels, blocksize to initialize ringbuffer(2dim)
     inBuffer = nullptr;
     outBuffer = nullptr;
@@ -410,6 +417,7 @@ Stretcher::LoadInputFile(std::string fileName,
     }
     Stretcher::ratio = ratio;
     Stretcher::duration = duration;
+    Stretcher::inputSampleRate = sfinfoIn.samplerate;
     if (Stretcher::inputChannels != sfinfoIn.channels) {
         PrepareInputBuffer(sfinfoIn.channels, defBlockSize, reserveBuffer);
         Stretcher::inputChannels = sfinfoIn.channels;
@@ -475,6 +483,7 @@ Stretcher::SetOutputFile(std::string fileName,
         return false;
     }
 
+    Stretcher::outputSampleRate = sfinfoOut.samplerate;
     if (Stretcher::outputChannels != sfinfoOut.channels) {
         PrepareOutputBuffer(sfinfoOut.channels, defBlockSize, reserveBuffer);
         Stretcher::outputChannels = sfinfoOut.channels;
@@ -528,7 +537,7 @@ Stretcher::PrepareInputBuffer(int channels, int blocks, size_t reserves) {
         ibuf = nullptr;
     }
     if (cbuf) {
-        for (int c = 0; c < Stretcher::inputChannels; c++) {
+        for (int c = 0; c < Stretcher::inputChannels; c++) { // use Stretcher::inputChannels as previous channel count
             delete cbuf[c];
         }
         delete[] cbuf;
@@ -547,12 +556,11 @@ Stretcher::PrepareInputBuffer(int channels, int blocks, size_t reserves) {
     }
     inBuffer = new RingBuffer<float>(channels * blocks + reserves);
     // DEBUG: im sleepy and have no idea good to it
-    if (inFrames) {
-        delete inFrames;
-        inFrames = nullptr;
+    if (inFrame) {
+        delete inFrame;
+        inFrame = nullptr;
     }
-    auto samplerate = inInfo->defaultSampleRate;
-    inFrames = new RingBuffer<float>(channels * samplerate + reserves);
+    inFrame = new float[channels * blocks + reserves];
 }
 
 void
@@ -569,8 +577,7 @@ Stretcher::PrepareOutputBuffer(int channels, int blocks, size_t reserves) {
         outBuffer = nullptr;
     }
     outBuffer = new RingBuffer<float>(channels * blocks + reserves);
-    auto samplerate = outInfo->defaultSampleRate;
-    outFrames = new RingBuffer<float>(channels * samplerate + reserves);
+    outFrame = new float[channels * blocks + reserves];
 }
 
 void
@@ -721,30 +728,16 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
     }
     if (inStream) {
         std::lock_guard<std::mutex> lock(inMutex);
-        // TODO: temerary ignore in my macbook prevent debugger console freeze
-#ifdef _WIN32
-        // cerr << "!!! Read in chunks " << inChunks.size() << endl;
-#endif
-        // if (inChunks.size() > 0) {
-        //     auto chunk = inChunks.front();
-        //     memcpy(ibuf, chunk, sizeof(float) * blockSize * inputChannels);
-        //     inChunks.pop_front();
-            count = blockSize;
-        //     delete chunk;
-        //     // TODO: find a way to drop frame if can not handle
-        // }
-        // else {
-        //     return false; // TODO: need return define to caller to stop while-loop for reading frames
-        // }
 
+        count = blockSize;
         if (inputChannels * count > inBuffer->getReadSpace()) {
             return false; // buffer not enough for process
         }
         else {
             inBuffer->read(ibuf, inputChannels * count);
             // debug
-            if (debugBuffer && debugBufTimerIn != (*pCountIn / 48000)) {
-                debugBufTimerIn = (*pCountIn / 48000);/*a samplerate*/
+            if (debugBuffer && debugBufTimerIn != (*pCountIn / (inputSampleRate ? inputSampleRate : 48000))) {
+                debugBufTimerIn = (*pCountIn / (inputSampleRate ? inputSampleRate : 48000));/*a samplerate*/
                 cerr << "input buffer usage " << (int)(((float)inBuffer->getReadSpace() / inBuffer->getSize()) * 100.f) << "%" << endl;
             }
         }
@@ -902,35 +895,14 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
 
         {
             std::lock_guard<std::mutex> lock(outMutex);
-            // cerr << "!!! Write out chunks " << outChunks.size() << ", chunkWrite " << chunkWrite << endl;
-            // int currSize = blockSize * outputChannels;
-            // auto obufPos = obuf;
-            // while (currSize > 0) {
-            //     if (chunkWrite == 0 || outChunks.size() == 0) {
-            //         auto chunk = new float[defBlockSize * outputChannels];
-            //         outChunks.push_back(chunk);
-            //     }
-            //     int restSize = defBlockSize * outputChannels - chunkWrite;
-            //     if (currSize > restSize) {
-            //         memcpy(&outChunks.back()[chunkWrite], obufPos, sizeof(float) * restSize);
-            //         currSize -= restSize;
-            //         obufPos += restSize;
-            //         chunkWrite = 0;
-            //     }
-            //     else {
-            //         memcpy(&outChunks.back()[chunkWrite], obufPos, sizeof(float) * currSize);
-            //         chunkWrite += currSize;
-            //         currSize -= currSize;
-            //     }
-            // }
 
             int writable = outBuffer->getWriteSpace();
             if (outputChannels * blockSize > writable) {
                 cerr << "output buffer is full" << endl;
             }
             else {
-                if (debugBuffer && debugBufTimerOut != (*pCountOut / 48000)) {
-                    debugBufTimerOut = (*pCountOut / 48000);/*a samplerate*/
+                if (debugBuffer && debugBufTimerOut != (*pCountOut / outputSampleRate ? outputSampleRate : 48000)) {
+                    debugBufTimerOut = (*pCountOut / outputSampleRate ? outputSampleRate : 48000);/*a samplerate*/
                     cerr << "output buffer usage " << (int)((1.f - (float)writable / outBuffer->getSize()) * 100.f) << "%" << endl;
                 }
                 outBuffer->write(obuf, outputChannels * blockSize);
@@ -1035,10 +1007,7 @@ Stretcher::inputAudioCallback(
     // TODO: may quick check levels to drop frames prevent too many input can't process immediately
     {
         std::lock_guard<std::mutex> lock(pst->inMutex); // automatically unlock when exit the code scope
-        // cerr << "!!! Write in chunks " << pst->inChunks.size() << endl;
-        // auto tmp = new float[frames * pst->inputChannels];
-        // memcpy(tmp, in, sizeof(float) * frames * pst->inputChannels);
-        // pst->inChunks.push_back(tmp);
+
         int writable = pst->inBuffer->getWriteSpace();
         if (pst->inputChannels * frames > writable) {
             cerr << "input buffer is full" << endl;
@@ -1051,9 +1020,7 @@ Stretcher::inputAudioCallback(
         }
     }
     //DEBUG: write to frame buffer for GUI rendering, i decide to ignore anything if buffer is full
-    if (pst->inputChannels * frames < pst->inFrames->getWriteSpace()) {
-        pst->inFrames->write(in, pst->inputChannels * frames);
-    }
+    memcpy_s(pst->inFrame, pst->inputChannels * frames, in, pst->inputChannels * frames);
 
     return paContinue;
 }
@@ -1074,17 +1041,6 @@ Stretcher::outputAudioCallback(
     {
         std::lock_guard<std::mutex> lock(pst->outMutex); // automatically unlock when exit the code scope
 
-        // cerr << "!!! Read out chunks " << pst->outChunks.size() << endl;
-        // if (pst->outDelayFrames > 0) {
-        //     if (pst->outChunks.size() > pst->outDelayFrames / pst->defBlockSize)
-        //         pst->outDelayFrames = 0;
-        // }
-        // if (pst->outDelayFrames <= 0 && pst->outChunks.size() > 0) {
-        //     auto chunk = pst->outChunks.front();
-        //     memcpy(out, chunk, sizeof(float) * frames * pst->outputChannels);
-        //     pst->outChunks.pop_front();
-        //     delete chunk;
-        // }
         if (pst->outDelayFrames > 0) {
             pst->outDelayFrames -= frames;
             if (pst->outDelayFrames < 0) {
@@ -1099,9 +1055,7 @@ Stretcher::outputAudioCallback(
         }
     }
     //DEBUG: write to frame buffer for GUI rendering, i decide to ignore anything if buffer is full
-    if (pst->outputChannels * frames < pst->outFrames->getWriteSpace()) {
-        pst->outFrames->write(out, pst->outputChannels * frames);
-    }
+    memcpy_s(pst->outFrame, pst->outputChannels * frames, out, pst->outputChannels * frames);
 
     return paContinue;
 }
@@ -1138,6 +1092,7 @@ Stretcher::SetInputStream(int index, int *pSampleRate, int *pChannels) {
     cerr << "Open input stream result " << er << endl;
 
     // NOTE: overwrite to file input
+    Stretcher::inputSampleRate = inInfo->defaultSampleRate;
     if (Stretcher::inputChannels != inInfo->maxInputChannels) {
         PrepareInputBuffer(inInfo->maxInputChannels, defBlockSize, reserveBuffer);
         Stretcher::inputChannels = inInfo->maxInputChannels;
@@ -1181,6 +1136,7 @@ Stretcher::SetOutputStream(int index) {
     cerr << "Open output stream result " << er << endl;
 
     // NOTE: overwtie to file output
+    Stretcher::outputSampleRate = outInfo->defaultSampleRate;
     if (Stretcher::outputChannels != outInfo->maxOutputChannels) {
         PrepareOutputBuffer(outInfo->maxOutputChannels, defBlockSize, reserveBuffer);
         Stretcher::outputChannels = outInfo->maxOutputChannels;
