@@ -29,7 +29,7 @@ private:
 	AudioInfo audioDevice;
 	// NOTE: decide to use the dirty way getting signal data from pa audio callback in stretcher class,
 	//   'cause easiest way prevent blocking device callback or increasing effort on stretcher processing 
-	const float* framePtr = nullptr;
+	float* framePtr = nullptr;
 	// NOTE: in this project, audio frame size is fixed number by default FFT block size, refer to sther->defBlockSize
 	//   the frame pointer size will be defBlockSize * channels
 	int framePtrSize = 0;

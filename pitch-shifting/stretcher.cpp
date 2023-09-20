@@ -15,6 +15,10 @@ static void usleep(unsigned long usec) {
 #include <unistd.h>
 #endif
 
+// for counting timeout
+#include <chrono>
+auto last = std::chrono::steady_clock::now();
+
 //DEBUG for channel data from rubber band
 #include <src/finer/R3Stretcher.h>
 
@@ -735,11 +739,13 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
         }
         else {
             inBuffer->read(ibuf, inputChannels * count);
-            // debug
-            if (debugBuffer && debugBufTimerIn != (*pCountIn / (inputSampleRate ? inputSampleRate : 48000))) {
-                debugBufTimerIn = (*pCountIn / (inputSampleRate ? inputSampleRate : 48000));/*a samplerate*/
-                cerr << "input buffer usage " << (int)(((float)inBuffer->getReadSpace() / inBuffer->getSize()) * 100.f) << "%" << endl;
-            }
+        }
+        // debug
+        if (debugBuffer && time(nullptr) - debugTimestampIn >= 2) {
+        //if (debugBuffer && debugBufTimerIn != (*pCountIn / (inputSampleRate ? inputSampleRate : 48000))) {
+            debugTimestampIn = time(nullptr);
+            //debugBufTimerIn = (*pCountIn / (inputSampleRate ? inputSampleRate : 48000));/*a samplerate*/
+            cerr << "input buffer usage " << (int)(((float)inBuffer->getReadSpace() / inBuffer->getSize()) * 100.f) << "%" << endl;
         }
     }
 
@@ -897,15 +903,14 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
             std::lock_guard<std::mutex> lock(outMutex);
 
             int writable = outBuffer->getWriteSpace();
-            if (outputChannels * blockSize > writable) {
-                cerr << "output buffer is full" << endl;
-            }
-            else {
-                if (debugBuffer && debugBufTimerOut != (*pCountOut / outputSampleRate ? outputSampleRate : 48000)) {
-                    debugBufTimerOut = (*pCountOut / outputSampleRate ? outputSampleRate : 48000);/*a samplerate*/
-                    cerr << "output buffer usage " << (int)((1.f - (float)writable / outBuffer->getSize()) * 100.f) << "%" << endl;
-                }
+            if (outputChannels * blockSize < writable) {
                 outBuffer->write(obuf, outputChannels * blockSize);
+            }
+            if (debugBuffer && time(nullptr) - debugTimestampOut >= 2) {
+            //if (debugBuffer && debugBufTimerOut != (*pCountOut / (outputSampleRate ? outputSampleRate : 48000))) {
+                debugTimestampOut = time(nullptr);
+                //debugBufTimerOut = (*pCountOut / (outputSampleRate ? outputSampleRate : 48000));/*a samplerate*/
+                cerr << "output buffer usage " << (int)((1.f - (float)writable / outBuffer->getSize()) * 100.f) << "%" << endl;
             }
         }
 
@@ -1010,7 +1015,9 @@ Stretcher::inputAudioCallback(
 
         int writable = pst->inBuffer->getWriteSpace();
         if (pst->inputChannels * frames > writable) {
-            cerr << "input buffer is full" << endl;
+            /*if (pst->debugBuffer) {
+                cerr << "input buffer is full" << endl;
+            }*/
         } else {
             // move to process function
             /*if (pst->debugBuffer) {
@@ -1020,7 +1027,8 @@ Stretcher::inputAudioCallback(
         }
     }
     //DEBUG: write to frame buffer for GUI rendering, i decide to ignore anything if buffer is full
-    memcpy_s(pst->inFrame, pst->inputChannels * frames, in, pst->inputChannels * frames);
+    std::copy(in, in + pst->inputChannels * frames, pst->inFrame);
+    //memcpy_s(pst->inFrame, pst->inputChannels * frames, in, pst->inputChannels * frames);
 
     return paContinue;
 }
@@ -1049,13 +1057,16 @@ Stretcher::outputAudioCallback(
             return paContinue;
         }
         if (pst->outputChannels * frames > pst->outBuffer->getReadSpace()) {
-            cerr << "output buffer is not enough" << endl;
+            /*if (pst->debugBuffer) {
+                cerr << "output buffer is not enough" << endl;
+            }*/
         } else {
             pst->outBuffer->read(out, pst->outputChannels * frames);
         }
     }
     //DEBUG: write to frame buffer for GUI rendering, i decide to ignore anything if buffer is full
-    memcpy_s(pst->outFrame, pst->outputChannels * frames, out, pst->outputChannels * frames);
+    std::copy(out, out + pst->outputChannels * frames, pst->outFrame);
+    //memcpy_s(pst->outFrame, pst->outputChannels * frames, out, pst->outputChannels * frames);
 
     return paContinue;
 }

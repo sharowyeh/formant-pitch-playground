@@ -252,8 +252,10 @@ private:
     size_t reserveBuffer = 32768;
     // just want to see the buffer usage
     bool debugBuffer = true;
-    int debugBufTimerIn = 0;
-    int debugBufTimerOut = 0;
+    time_t debugTimestampIn = time(nullptr);
+    time_t debugTimestampOut = time(nullptr);
+    //int debugBufTimerIn = 0;
+    //int debugBufTimerOut = 0;
 
     // mutex for in/out ring buffer
     std::mutex inMutex;
