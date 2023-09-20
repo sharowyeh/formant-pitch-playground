@@ -10,7 +10,8 @@ GLUI::RealTimePlot::RealTimePlot(const char* posfix) : PlotChartBase(posfix) {
 	realtimePlotRangeLabel = IdenticalLabel("Range");
 
 	audioDevice = { 0 };
-	frameBuffer = nullptr;
+	framePtr = nullptr;
+	framePtrSize = 0;
 
 	realtimePlotEnabled = true;
 	currentTime = 0;
@@ -24,16 +25,13 @@ GLUI::RealTimePlot::~RealTimePlot() {
 	}
 }
 
-void GLUI::RealTimePlot::SetDeviceInfo(int samplerate, int channels) {
+void GLUI::RealTimePlot::SetAudioInfo(int samplerate, int channels, float* ptr, int size) {
 	audioDevice.SampleRate = samplerate;
 	audioDevice.Channels = channels;
-}
-
-void GLUI::RealTimePlot::SetFrameBuffer(RubberBand::RingBuffer<float>* buffer) {
-	frameBuffer = buffer;
-
-	// audio info must have larger than 1 sec as temperary buffer for resampling
-	audioDevice.Frames = audioDevice.SampleRate;
+	framePtr = ptr;
+	framePtrSize = size;
+	// based on given parameters for audioDevice buffer allocation
+	audioDevice.Frames = size;
 	if (audioDevice.Buffer) {
 		delete audioDevice.Buffer;
 		audioDevice.Buffer = nullptr;
@@ -57,7 +55,7 @@ void GLUI::RealTimePlot::UpdateRealtimeWavPlot() {
 	if (realtimePlotEnabled == false) return;
 
 	// makes sure input device has been initialized (by SetInputAudioInfo and SetInputFrame
-	if (audioDevice.SampleRate == 0 || audioDevice.Channels == 0 || frameBuffer == nullptr) return;
+	if (audioDevice.SampleRate == 0 || audioDevice.Channels == 0 || framePtrSize == 0 || framePtr == nullptr) return;
 
 	ImGui::SameLine();
 	ImGui::SliderFloat(realtimePlotRangeLabel.c_str(), &elapsedRange, 0.5f, 5.f, "%.1f s", ImGuiSliderFlags_None);
@@ -69,31 +67,22 @@ void GLUI::RealTimePlot::UpdateRealtimeWavPlot() {
 	int beginIdx = floor(currentTime * audioDevice.SampleRate); // no use to audio device stream
 	int sampleCnt = floor(deltaTime * audioDevice.SampleRate);
 	currentTime += deltaTime;
-	// NOTE: for variable size of audio stream device via ring buffer, may only focus sampleCnt and readable size
-	//   retrieve ring buffer to our continuous temperary buffer for plot chart resampling
-	//   the `readable` number is samples * channels
+
 	// NOTE: based on frame size of port audio callback was set by Stretcher::defaultBlockSize (for FFT),
 	//   each frame slices are always block size(1024) * channels(2) = 2048
 	//   the GUI refresh rate can very, depends on performance that may not regularly consume audio frame from the buffer
-	// NOTE: be awared the dragging GUI also affact GUI refresh rate, that impact to the frame buffering too 
-	int readable = frameBuffer->getReadSpace();
-	//DEBUG: not drop frame, keep to next GUI refresh consuming buffer
+
+	// NOTE: just make drawing simply, only use minimal availble samples whether GUI refresh rate changes 
+	int readable = framePtrSize;
 	if (readable > sampleCnt * audioDevice.Channels) {
-		std::cout << "required sample:" << sampleCnt << " chs:" << audioDevice.Channels << " readable:" << readable << std::endl;
+		//std::cout << "required sample:" << sampleCnt << " chs:" << audioDevice.Channels << " readable:" << readable << std::endl;
 		readable = sampleCnt * audioDevice.Channels;
 	}
-	//while (readable > sampleCnt * audioDevice.Channels) {
-	//	// GUI refresh rate may higher than audio output frame rate, that required sample count will be less than readable frame
-	//	int dropped = frameBuffer->read(audioDevice.Buffer, readable - sampleCnt * audioDevice.Channels);
-	//	readable = frameBuffer->getReadSpace();
-	//	//TODO: temparary ignore warnings because it's really annoying
-	//	//std::cout << "required sample:" << sampleCnt << " chs:" << audioDevice.Channels << " drop:" << dropped << " readable:" << readable << std::endl;
-	//}
 	if (readable < sampleCnt * audioDevice.Channels) {
-		//TODO: temparary ignore warnings because it's really annoying
-		std::cout << "readable:" << readable << " is less than required sample cnt:" << sampleCnt << " chs:" << audioDevice.Channels << std::endl;
+		//std::cout << "readable:" << readable << " is less than required sample cnt:" << sampleCnt << " chs:" << audioDevice.Channels << std::endl;
 	}
-	frameBuffer->read(audioDevice.Buffer, readable);
+	//TODO: since change to use single frame buffer, it has poor sampling graph(may cause by memory leak...)
+	memcpy_s(audioDevice.Buffer, readable, framePtr, readable);
 	int frames = readable / audioDevice.Channels;
 	for (int ch = 0; ch < audioDevice.Channels; ch++) {
 		if (ch > 1) break;

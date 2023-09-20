@@ -250,13 +250,15 @@ int main(int argc, char **argv)
     while (!fileWaveform) {
         Sleep(100);
     }
-    //DEBUG: set audio information to GUI plot
-    inWaveform->SetDeviceInfo(sampleRate, channels);
-    //DEBUG: inputFrames must afterward sther->SetInputStream for ring buffer initialization
-    inWaveform->SetFrameBuffer(sther->inFrames);
+
+    //DEBUG: set audio information to GUI plot, given inFrame must afterward sther->SetInputStream for buffer initialization
+    inWaveform->SetAudioInfo(sampleRate, channels, sther->inFrame, defBlockSize * channels);
     //DEBUG: try output device
-    outWaveform->SetDeviceInfo(sther->outInfo->defaultSampleRate, sther->outInfo->maxOutputChannels);
-    outWaveform->SetFrameBuffer(sther->outFrames);
+    outWaveform->SetAudioInfo(
+        sther->outInfo->defaultSampleRate, 
+        sther->outInfo->maxOutputChannels, 
+        sther->outFrame, 
+        defBlockSize * sther->outInfo->maxOutputChannels);
 
     RubberBandStretcher::Options options = 0;
     options = sther->SetOptions(finer, realtime, typewin, smoothing, formant,

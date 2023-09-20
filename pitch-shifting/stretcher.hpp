@@ -143,11 +143,9 @@ public:
     // DEBUG: original design for waiting audio stream to receive/send audio frames in portaudio callback, now use main loop instead
     void WaitStream(int timeout = 2000) { if (inStream || outStream) Pa_Sleep(timeout); };
     
-    //DEBUG: signal frames for waveform display, should be the same with in/outBuffer, so far i give it 1 sec buffer size
-    //TODO: i think these GUI buffers are better initilize from GUI, and given to this class to fillout
-    //TODO: can use atomic flag for GUI prevent GUI reading buffer to block buffer appending...? not good
-    RingBuffer<float>* inFrames;
-    RingBuffer<float>* outFrames;
+    //DEBUG: try to use consistent size of single frame for display buffer, data just overwritten in next frame arrived
+    float* inFrame;
+    float* outFrame;
 
     //DEBUG: try pointer of std::vector<std::shared_ptr<R3Stretcher::ChannelData>>
     void* GetChannelData();
@@ -227,6 +225,8 @@ private:
     // output sound info
     SF_INFO sfinfoOut;
 
+    int inputSampleRate;
+    int outputSampleRate;
     int inputChannels;
     int outputChannels;
     int defBlockSize = 1024;
@@ -254,15 +254,11 @@ private:
     bool debugBuffer = true;
     int debugBufTimerIn = 0;
     int debugBufTimerOut = 0;
-    // TODO: poor perf in windows env allocate/reallocate memory
+
+    // mutex for in/out ring buffer
     std::mutex inMutex;
-    //std::deque<float*> inChunks;
     std::mutex outMutex;
-    //int chunkWrite = 0;
-    //std::deque<float*> outChunks;
-    // delay for available blocks to audio output, about 0.25s:
-    // Mac default vDSP quite performanced that can reduce to 4096 frames including rubberband dropped
-    // Windows env using fftw and libsamplerate also can recude less than 2000 frames
+
 	int outDelayFrames = 2000;
 
     int dropFrames;
