@@ -12,7 +12,7 @@ GLUI::PhaseChart::PhaseChart(const char* surffix) : PlotChartBase(surffix)
 	bufSize = 0; // basically is fftSize / 2 + 1, TODO: also bin count of fft, refer to GuidedPhaseAdvance class
 }
 
-void GLUI::PhaseChart::SetPhaseInfo(int fftsize, int ch, double* phases, int size)
+void GLUI::PhaseChart::SetPhaseInfo(int ch, int fftsize, double* phases, int size)
 {
 	fftSize = fftsize;
 	phasesPtr = phases;

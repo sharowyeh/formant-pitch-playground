@@ -9,7 +9,7 @@ public:
 	PhaseChart(const char* surffix);
 	
 	/* NOTE: phase data is channel separated */
-	void SetPhaseInfo(int fftsize, int channel, double* phases, int size);
+	void SetPhaseInfo(int ch, int fftsize, double* phases, int size);
 	
 	void Update();
 	void UpdatePhasePlot();

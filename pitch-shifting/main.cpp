@@ -63,7 +63,8 @@ GLUI::TimeoutPopup* leavePopup = nullptr;
 GLUI::Waveform* fileWaveform = nullptr;
 GLUI::RealTimePlot* inWaveform = nullptr;
 GLUI::RealTimePlot* outWaveform = nullptr;
-GLUI::PhaseChart* phForm = nullptr;
+std::vector<GLUI::PhaseChart*> phaseForms;
+//GLUI::PhaseChart* phForm = nullptr;
 
 //TODO: not integrate to main yet
 void debugGLwindow()
@@ -92,7 +93,13 @@ void debugGLwindow()
     fileWaveform = new GLUI::Waveform("");
     inWaveform = new GLUI::RealTimePlot("in");
     outWaveform = new GLUI::RealTimePlot("out");
-    phForm = new GLUI::PhaseChart("phase");
+    // DEBUG: i know there are 3 scale fft size
+    for (int i = 0; i < 3; i++) {
+        std::string ph("phase");
+        ph.append(std::to_string(pow(2, (i + 10))));
+        phaseForms.push_back(new GLUI::PhaseChart(ph.c_str()));
+    }
+
     // DEBUG: read my debug audio
     fileWaveform->LoadAudioFile("debug.wav");
     while (!window->PrepareFrame()) {
@@ -104,7 +111,9 @@ void debugGLwindow()
         fileWaveform->Update();
         inWaveform->Update();
         outWaveform->Update();
-        phForm->Update();
+        for (auto it = phaseForms.begin(); it != phaseForms.end(); it++) {
+            (*it)->Update();
+        }
         
         ImGui::PopStyleVar();
 
@@ -325,11 +334,15 @@ int main(int argc, char **argv)
         successful = true;
 
         sther->Create(sampleRate, channels, options, ratio, frequencyshift);
-        int fftSize = 0;
-        int bufSize = 0;
-        double* phasePtr = nullptr;
-        auto ptr_of_shared_ptr = sther->GetChannelData(&fftSize, &bufSize, &phasePtr);
-        phForm->SetPhaseInfo(fftSize, 0, phasePtr, bufSize);
+        // DEBUG: i know there are 3 scale fft size
+        for (int i = 0; i < 3; i++) {
+            int bufSize = 0;
+            double* phasePtr = nullptr;
+            int fftSize = pow(2, (i + 10)); // 1024, 2048, 4096
+            sther->GetScaleAdvancedPhase(0, fftSize, &phasePtr, &bufSize);
+            phaseForms[i]->SetPhaseInfo(0, fftSize, phasePtr, bufSize);
+        }
+        auto ptr_of_shared_ptr = sther->GetChannelData();
         auto formantFFTSize = sther->GetFormantFFTSize();
         std::cout << "got channel data: formant fft size " << formantFFTSize << " even it's struct but has complex param/function" << std::endl;
         if (inSource == SourceType::AudioFile) {

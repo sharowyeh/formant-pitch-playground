@@ -57,6 +57,10 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
   - set atomic time ratio, pitch scale and formant scale
   - ctor m_guide, for fftband, phaselockband, ... and guidance configurations
   - TODO:
+  - fft scales[3]:
+    - [0] is classification fft size / 2 (eg, 1024),
+    - [1] is classification fft size (def block size, 2048),
+    - [2] is classification fft size * 2 (eg, 4096)
 - maxProcessSize
   - cannot larger than m_limits.overallMaxProcessSize (default 524288)
   - ensure m_channelData cd->inbuf size n*2, cd->outbuf size n*8
@@ -125,6 +129,7 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
     - analysis channel end
   - Phase update across all channels: TODO
     - GuidedPhaseAdvance::advance to each scales m_channelAssembly.outPhase (ptr assigned by scale->advancedPhase)
+      - princarg = principal argument, phase(angle) normalization between -pi to pi
   - Resynthesis: TODO
   - Resample: post-resampling: TODO
   - Emit: TODO
