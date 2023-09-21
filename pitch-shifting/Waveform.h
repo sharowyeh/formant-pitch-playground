@@ -48,7 +48,7 @@ typedef struct AmplitudeBuffer {
 			Amplitudes[Offset] = Amplitude(time, positive, negative);
 			Offset = (Offset + 1) % MaxSize;
 		}
-	}
+		}
 	// given size 0 all data will be erase
 	void Resize(int size = PLOT_WIDTH_MAX) {
 		MaxSize = size;
@@ -67,8 +67,8 @@ typedef struct AmplitudeBuffer {
 
 class Waveform: public PlotChartBase {
 public:
-	//DEBUG given pre/postfix or PushID(?not work on implot) for gui identification
-	Waveform(const char* posfix);
+	//DEBUG given pre/surffix or PushID(?not work on implot) for gui identification
+	Waveform(const char* surffix);
 	/* load audio file to get audio info and read buffer for plot chart drawing */
 	bool LoadAudioFile(std::string fileName, int* samplerate = nullptr, int* channels = nullptr, size_t* frames = nullptr, float** buf = nullptr);
 

@@ -10,8 +10,8 @@ namespace GLUI {
 
 class PlotChartBase {
 public:
-	PlotChartBase(const char* posfix) {
-		postfix = posfix;
+	PlotChartBase(const char* surf) {
+		surffix = surf;
 	}
 	/* return min and max value from frame buffer from offset during the length */
 	void GetRangeMinMax(int offset, int length, int frames, int channels, float* buf, int ch, float* maximum, float* minimum) {
@@ -30,15 +30,15 @@ public:
 		}
 	}
 protected:
-	/* postfix for GUI componment identification */
-	const char* postfix;
+	/* surffix for GUI componment identification */
+	const char* surffix;
 	/* NOTE: it's also ok if using PushID/PopID for GUI controls identification, but I like preserving labels for rendering */
 	std::string IdenticalLabel(const char* label, const char* id = nullptr) {
 		std::string labelid;
 		if (label) labelid.append(label);
 		labelid.append("##");
 		if (id) labelid.append(id);
-		labelid.append(postfix);
+		labelid.append(surffix);
 		return labelid;
 	}
 }; // class

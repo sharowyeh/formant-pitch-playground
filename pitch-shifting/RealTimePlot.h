@@ -6,13 +6,13 @@ namespace GLUI {
 
 class RealTimePlot : public PlotChartBase {
 public:
-	RealTimePlot(const char* posfix);
+	RealTimePlot(const char* surffix);
 
 	/* given audio information from stretcher, assign to audioDevice and drawing buffer allocation
 	 * NOTE: framePtr/ptrSize => frame buffer ptr and its size from port audio callback in stretcher class
 	 */
 	void SetAudioInfo(int samplerate, int channels, float* framePtr, int ptrSize);
-
+	// NOTE: all realtime plot instances will drawing on the same window(the same window id but identical widget id by surffix) 
 	void Update();
 	void UpdateRealtimeWavPlot(); // time-amp plot scrolling on short time window
 
