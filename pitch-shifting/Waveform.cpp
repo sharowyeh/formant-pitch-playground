@@ -8,7 +8,7 @@ using std::string;
 
 namespace GLUI {
 
-Waveform::Waveform(const char* posfix) : PlotChartBase(posfix) {
+Waveform::Waveform(const char* surffix) : PlotChartBase(surffix) {
 	title = string("Waveform");
 	wavPlotEnableLabel = IdenticalLabel("Enable Wavfile Plot");
 	wavPlotTitle = IdenticalLabel("Wav");
@@ -72,6 +72,11 @@ bool Waveform::LoadAudioFile(std::string fileName, int* samplerate, int* channel
 		sf_close(f);
 	}
 
+	// reserve wav plot buffer for second audio channel(maximum only support 2 channels)
+	if (audioFile.Channels > 1) {
+		wavPlotBuffer[1].reserve(PLOT_WIDTH_MAX);
+	}
+
 	return true;
 }
 
@@ -116,10 +121,6 @@ void Waveform::UpdateWavPlot()
 	}
 
 	if (wavPlotEnabled == false) return;
-
-	// also reserve wav plot buffer for second audio channel(maximum only support 2 channels)
-	if (audioFile.Channels > 1 && wavPlotBuffer[1].capacity() == 0)
-		wavPlotBuffer[1].reserve(PLOT_WIDTH_MAX);
 	
 	if (ImPlot::BeginPlot(wavPlotTitle.c_str(), ImVec2(-1, 300))) {
 		ImPlot::SetupAxes("time", "amp");

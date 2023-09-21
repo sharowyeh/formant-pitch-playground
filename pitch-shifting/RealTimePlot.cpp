@@ -2,7 +2,7 @@
 
 using std::string;
 
-GLUI::RealTimePlot::RealTimePlot(const char* posfix) : PlotChartBase(posfix) {
+GLUI::RealTimePlot::RealTimePlot(const char* surffix) : PlotChartBase(surffix) {
 	title = string("Realtime Waveform");
 
 	realtimePlotEnableLabel = IdenticalLabel("Enable Realtime Plot");
@@ -116,7 +116,7 @@ void GLUI::RealTimePlot::UpdateRealtimeWavPlot() {
 				&realtimeBuffer[ch].Amplitudes[0].x,
 				&realtimeBuffer[ch].Amplitudes[0].p,
 				realtimeBuffer[ch].Amplitudes.size(), 0, 0, realtimeBuffer[ch].Offset, 3 * sizeof(float));*/
-				/*ImPlot::PlotShaded(label.c_str(),
+			/*ImPlot::PlotShaded(label.c_str(),
 					&realtimeBuffer[ch].Amplitudes[0].x,
 					&realtimeBuffer[ch].Amplitudes[0].n,
 					realtimeBuffer[ch].Amplitudes.size(), 0, 0, realtimeBuffer[ch].Offset, 3 * sizeof(float));*/
