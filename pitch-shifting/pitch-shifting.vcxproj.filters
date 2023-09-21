@@ -87,6 +87,9 @@
     <ClCompile Include="RealTimePlot.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="PhasePlot.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\getopt\getopt.h">
@@ -153,6 +156,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="PlotChartBase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PhasePlot.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
