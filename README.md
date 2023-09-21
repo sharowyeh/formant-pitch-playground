@@ -46,7 +46,7 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
 |- ...
 ```
 
-# rubberband r3 stretcher trace #
+# rubberband r3 stretcher code trace #
 
 ## stretcher settings ##
 - Create, to r2 or r3 Impl depends on options, and ctor with options
@@ -63,19 +63,24 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
 
 ## stretcher -> process() given buf[c][i] 2d array ##
 - check if inputs need resampling, and loop samples length to write m_channelData(cd) -> inbuf 
-  - pre-resampling given inputs if resampler implemented and:
-    - lower frequency or smaller pitch scale(lower pitch) with option set high quality
-    - higher frequency or higher pitch scale(higher pitch) without high quality setting
-    - realtime and high consistency will ignore pre-resampling
-    - pitch changes also envolved the frequency scaling whether frequency shifts and duration adjustments, which means:
-      in time-domain, resampling to higher frequency will result less frames(samples) from origin and conversely to lower frequency,
-      to keep specific duration with the same sample rate, 
-  - loop inputs with index to copy to m_channelAssembly.input[c]
-  - write to ring buffer m_channelData[c]->inbuf
+  - check areWeResampling() for inputs pre-resampling, which following:
+    - resampler is implemented and:
+      - lower frequency or smaller pitch scale(lower pitch) with option set pitch high quality
+      - higher frequency or higher pitch scale(higher pitch) without option set pitch high quality
+      - realtime and high consistency will ignore pre-resampling
+      - pitch changes also envolved the frequency scaling whether frequency shifts and duration adjustments, which means:
+        in time-domain, resampling to higher frequency will result less frames(samples) from origin and conversely to lower frequency,
+        to keep specific duration with the same sample rate, 
+  - loop inputs for prepareInput() calc l/r/m/s and store to m_channelAssembly.input[c]
+  - (if pre-resampling enabled)
+    - calls resampler resulting to m_channelAssembly.resampled[c] (ptr assigned by m_channelData.at(c)->resampled)
+  - write to ring buffer m_channelData[c]->inbuf from m_channelAssembly.input[c] or m_channelAssembly.resampled[c]
 - consume()
-  - apply post-resampling given in hop size to calculate out hop size via calculateSingle()
+  - check areWeResampling for output post-resampling, for further usage in end of consume()
+  - apply time ratio given in hop size to calculate out hop size via calculateSingle()
     - interleave channels signal from in[c][i] to dst[idx] in lr pattern for resampler
-  - until m_channelData cd->inbuf is enough for in hop fft window size via getWindowSourceSize()
+  - loop m_channelData(cd)->inbuf to inputs consumption
+  - check cd->inbuf is enough for in hop fft window size via getWindowSourceSize()
   - analysisChannel()
     - read cd->inbuf to cd->windowSource
     - multiply unwindowed input frames to each cd->scales time domain data, except classification scale
@@ -118,7 +123,13 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
       - also record to cd->prevSegmentation, current and the next
     - update all fft parameters to guide via updateGuidance TODO: check guide class
     - analysis channel end
- 
+  - Phase update across all channels: TODO
+    - GuidedPhaseAdvance::advance to each scales m_channelAssembly.outPhase (ptr assigned by scale->advancedPhase)
+  - Resynthesis: TODO
+  - Resample: post-resampling: TODO
+  - Emit: TODO
+  - consume end
+
 ## stretcher -> available() -> retrieve() ##
 - TODO:
 
