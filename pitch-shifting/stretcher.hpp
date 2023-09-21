@@ -148,8 +148,9 @@ public:
     float* outFrame;
 
     //DEBUG: try pointer of std::vector<std::shared_ptr<R3Stretcher::ChannelData>>
-    void* GetChannelData(int* fftSize, int* bufSize, double** phasePtr);
+    void* GetChannelData();
     int GetFormantFFTSize();
+    void* GetScaleAdvancedPhase(int channel, int fftSize, double** phasePtr, int* bufSize);
 
 protected:
     // make sure deconstruction will be done
