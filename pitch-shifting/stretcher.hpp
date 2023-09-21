@@ -148,7 +148,7 @@ public:
     float* outFrame;
 
     //DEBUG: try pointer of std::vector<std::shared_ptr<R3Stretcher::ChannelData>>
-    void* GetChannelData();
+    void* GetChannelData(int* fftSize, int* bufSize, double** phasePtr);
     int GetFormantFFTSize();
 
 protected:

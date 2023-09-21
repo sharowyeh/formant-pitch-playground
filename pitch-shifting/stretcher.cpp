@@ -99,11 +99,20 @@ Stretcher::~Stretcher() {
     dispose();
 }
 
-void* Stretcher::GetChannelData()
+void* Stretcher::GetChannelData(int* fftSize, int* bufSize, double** phasePtr)
 {
     auto data = pts->getChannelData(0);
     auto pcd = static_cast<std::shared_ptr<RubberBand::R3Stretcher::ChannelData>*>(data);
     auto cd = *pcd;
+    for (auto it = cd->scales.begin(); it != cd->scales.end(); it++) {
+        auto fft = it->first;
+        auto buf = cd->scales[fft]->bufSize;
+        auto advance = cd->scales[fft]->advancedPhase.data();
+        *fftSize = fft;
+        *bufSize = buf;
+        *phasePtr = advance;
+        break; // TODO: DEBUG: use smallest scale size to check phase plot chart is workable
+    }
     return data;
 }
 
