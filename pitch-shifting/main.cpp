@@ -55,7 +55,7 @@ using std::endl;
 #include "TimeoutPopup.h"
 #include "Waveform.h"
 #include "RealTimePlot.h"
-#include "PhasePlot.h"
+#include "ScalePlot.h"
 
 GLUI::Window* window = nullptr;
 GLUI::CtrlForm* ctrlForm = nullptr;
@@ -63,8 +63,8 @@ GLUI::TimeoutPopup* leavePopup = nullptr;
 GLUI::Waveform* fileWaveform = nullptr;
 GLUI::RealTimePlot* inWaveform = nullptr;
 GLUI::RealTimePlot* outWaveform = nullptr;
-std::vector<GLUI::PhaseChart*> phaseForms;
-//GLUI::PhaseChart* phForm = nullptr;
+GLUI::ScalePlot* scaleChart = nullptr;
+std::vector<GLUI::ScalePlot*> scaleCharts;
 
 //TODO: not integrate to main yet
 void debugGLwindow()
@@ -93,11 +93,10 @@ void debugGLwindow()
     fileWaveform = new GLUI::Waveform("");
     inWaveform = new GLUI::RealTimePlot("in");
     outWaveform = new GLUI::RealTimePlot("out");
+    scaleChart = new GLUI::ScalePlot("classy");
     // DEBUG: i know there are 3 scale fft size
     for (int i = 0; i < 3; i++) {
-        std::string ph("phase");
-        ph.append(std::to_string(pow(2, (i + 10))));
-        phaseForms.push_back(new GLUI::PhaseChart(ph.c_str()));
+        scaleCharts.push_back(new GLUI::ScalePlot(std::to_string((int)pow(2, (i + 10))).c_str()));
     }
 
     // DEBUG: read my debug audio
@@ -111,9 +110,7 @@ void debugGLwindow()
         fileWaveform->Update();
         inWaveform->Update();
         outWaveform->Update();
-        for (auto it = phaseForms.begin(); it != phaseForms.end(); it++) {
-            (*it)->Update();
-        }
+        scaleChart->Update();
         
         ImGui::PopStyleVar();
 
@@ -337,10 +334,26 @@ int main(int argc, char **argv)
         // DEBUG: i know there are 3 scale fft size
         for (int i = 0; i < 3; i++) {
             int bufSize = 0;
-            double* phasePtr = nullptr;
+            double* dataPtr = nullptr;
             int fftSize = pow(2, (i + 10)); // 1024, 2048, 4096
-            sther->GetScaleAdvancedPhase(0, fftSize, &phasePtr, &bufSize);
-            phaseForms[i]->SetPhaseInfo(0, fftSize, phasePtr, bufSize);
+            if (fftSize == 1024) {
+                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Real, 0, fftSize, &dataPtr, &bufSize);
+                scaleChart->SetScaleInfo(1, 0, fftSize, dataPtr, bufSize);
+                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Imaginary, 0, fftSize, &dataPtr, &bufSize);
+                scaleChart->SetScaleInfo(2, 0, fftSize, dataPtr, bufSize);
+                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Magnitude, 0, fftSize, &dataPtr, &bufSize);
+                scaleChart->SetScaleInfo(3, 0, fftSize, dataPtr, bufSize);
+                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Phase, 0, fftSize, &dataPtr, &bufSize);
+                scaleChart->SetScaleInfo(4, 0, fftSize, dataPtr, bufSize);
+                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::AdvancedPhase, 0, fftSize, &dataPtr, &bufSize);
+                scaleChart->SetScaleInfo(5, 0, fftSize, dataPtr, bufSize);
+                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PreviousMagnitude, 0, fftSize, &dataPtr, &bufSize);
+                scaleChart->SetScaleInfo(6, 0, fftSize, dataPtr, bufSize);
+                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PendingKick, 0, fftSize, &dataPtr, &bufSize);
+                scaleChart->SetScaleInfo(7, 0, fftSize, dataPtr, bufSize);
+                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Accumulator, 0, fftSize, &dataPtr, &bufSize);
+                scaleChart->SetScaleInfo(8, 0, fftSize, dataPtr, bufSize);
+            }
         }
         auto ptr_of_shared_ptr = sther->GetChannelData();
         auto formantFFTSize = sther->GetFormantFFTSize();

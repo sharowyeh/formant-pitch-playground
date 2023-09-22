@@ -74,14 +74,13 @@ public:
 
 	/* resampling data based on GUI width, prevent useless plot points redrawing on GUI */
 	void ResampleAmplitudes(int width, double begin, double end, int samplerate, int frames, int channels, float* buf, int ch = 0);
-	void Update();
-	void UpdateWavPlot(); // time-amp plot
+	
+	void UpdatePlot() override; // time-amp plot
 
 protected:
 	virtual ~Waveform();
 private:
 	// for identical labels
-	std::string title;
 	std::string wavPlotEnableLabel;
 	std::string wavPlotTitle;
 	std::string wavPlotFittingLabel;

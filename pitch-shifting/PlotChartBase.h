@@ -29,10 +29,22 @@ public:
 			if (*minimum > buf[idx]) *minimum = buf[idx];
 		}
 	}
+	/* let derived class can overwrite if want to change drawing window properties */
+	virtual void Update() {
+		if (title.empty())
+			title = std::string("Unnamed Window");
+		ImGui::Begin(title.c_str(), nullptr);
+		UpdatePlot();
+		ImGui::End();
+	}
+	virtual void UpdatePlot() = 0;
+
 protected:
 	/* surffix for GUI componment identification */
 	const char* surffix;
-	/* NOTE: it's also ok if using PushID/PopID for GUI controls identification, but I like preserving labels for rendering */
+	/* helper function to create identical label with surffix for derived class ImGui ID usage
+	 * NOTE: it's also ok if using PushID/PopID for GUI controls identification, but I like preserving labels for rendering
+	 */
 	std::string IdenticalLabel(const char* label, const char* id = nullptr) {
 		std::string labelid;
 		if (label) labelid.append(label);
@@ -41,6 +53,7 @@ protected:
 		labelid.append(surffix);
 		return labelid;
 	}
+	std::string title;
 }; // class
 
 } // namespace GLUI

@@ -1,5 +1,6 @@
 #pragma once
 /* DEBUG: i guess phase data can use line chart? */
+//TODO: support multiple datasets, check graphs if suitable drawing in the same chart
 #include "Waveform.h"
 
 namespace GLUI {

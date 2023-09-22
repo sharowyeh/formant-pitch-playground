@@ -105,17 +105,7 @@ void Waveform::ResampleAmplitudes(int width, double begin, double end, int sampl
 	}
 }
 
-void Waveform::Update()
-{
-	//TODO: should i give a default size?
-	/* with consistent form title, all instances rendering together */
-	ImGui::Begin(title.c_str(), nullptr);
-	//TODO: perf goes crazy cause plot chart resampling
-	UpdateWavPlot();
-	ImGui::End();
-}
-
-void Waveform::UpdateWavPlot()
+void Waveform::UpdatePlot()
 {
 	if (ImGui::Checkbox(wavPlotEnableLabel.c_str(), &wavPlotEnabled)) {
 	}
