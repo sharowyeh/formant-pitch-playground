@@ -41,10 +41,9 @@ void GLUI::RealTimePlot::SetAudioInfo(int samplerate, int channels, float* ptr, 
 
 void GLUI::RealTimePlot::Update() {
 	/* override PlotChartBase::Updates */
-	//TODO: should i give a default size?
-	/* with consistent form title, all instances rendering together */
+	
 	ImGui::Begin(title.c_str(), nullptr, ImGuiWindowFlags_None);
-	//TODO: perf goes crazy cause plot chart resampling
+	// NOTE: aware performance issue during drawing plot points just like
 	UpdatePlot();
 	ImGui::End();
 }

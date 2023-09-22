@@ -108,14 +108,50 @@ void* Stretcher::GetChannelData()
 int Stretcher::GetFormantFFTSize()
 {
     auto data = pts->getChannelData(0);
-    auto pcd = static_cast<std::shared_ptr<RubberBand::R3Stretcher::ChannelData>*>(data);
-    auto cd = *pcd;
+    auto cd = *static_cast<std::shared_ptr<RubberBand::R3Stretcher::ChannelData>*>(data);
     return cd->formant->fftSize;
 }
 
-int Stretcher::GetChannelScaleKeys(int channel, int* fftSizes)
+void* Stretcher::GetFormantData(FormantDataType type, int channel, int* fftSize, double** dataPtr, int* bufSize)
 {
-    return 0;
+    auto data = pts->getChannelData(channel);
+    if (data == nullptr) return nullptr;
+
+    auto cd = *static_cast<std::shared_ptr<RubberBand::R3Stretcher::ChannelData>*>(data);
+    auto formant = cd->formant.get();
+    if (formant == nullptr) return nullptr;
+    
+    *fftSize = formant->fftSize;
+    *bufSize = formant->fftSize / 2 + 1;
+    switch (type) {
+    case FormantDataType::Cepstra:
+        *bufSize = formant->fftSize;
+        *dataPtr = formant->cepstra.data();
+        break;
+    case FormantDataType::Envelope:
+        *dataPtr = formant->envelope.data();
+        break;
+    case FormantDataType::Spare:
+        *dataPtr = formant->spare.data();
+        break;
+    }
+    return formant;
+}
+
+int Stretcher::GetChannelScaleSizes(int channel, int* fftSizes)
+{
+    auto data = pts->getChannelData(channel);
+    if (data == nullptr) return 0;
+
+    auto cd = *static_cast<std::shared_ptr<RubberBand::R3Stretcher::ChannelData>*>(data);
+    
+    if (fftSizes != nullptr) {
+        for (int i = 0; i < cd->scales.size(); i++) {
+            *fftSizes = cd->scales[i]->fftSize;
+            fftSizes++;
+        }
+    }
+    return cd->scales.size();
 }
 
 void* Stretcher::GetChannelScaleData(ScaleDataType type, int channel, int fftSize, double** dataPtr, int* bufSize)
