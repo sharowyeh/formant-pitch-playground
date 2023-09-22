@@ -67,7 +67,7 @@ typedef struct AmplitudeBuffer {
 
 class Waveform: public PlotChartBase {
 public:
-	//DEBUG given pre/surffix or PushID(?not work on implot) for gui identification
+	/* given surffix for unique ImGui ID generation instead of PushID */
 	Waveform(const char* surffix);
 	/* load audio file to get audio info and read buffer for plot chart drawing */
 	bool LoadAudioFile(std::string fileName, int* samplerate = nullptr, int* channels = nullptr, size_t* frames = nullptr, float** buf = nullptr);

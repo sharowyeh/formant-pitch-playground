@@ -63,8 +63,9 @@ GLUI::TimeoutPopup* leavePopup = nullptr;
 GLUI::Waveform* fileWaveform = nullptr;
 GLUI::RealTimePlot* inWaveform = nullptr;
 GLUI::RealTimePlot* outWaveform = nullptr;
+GLUI::ScalePlot* formantChart = nullptr;
 GLUI::ScalePlot* scaleChart = nullptr;
-std::vector<GLUI::ScalePlot*> scaleCharts;
+//std::vector<GLUI::ScalePlot*> scaleCharts;
 
 //TODO: not integrate to main yet
 void debugGLwindow()
@@ -93,11 +94,8 @@ void debugGLwindow()
     fileWaveform = new GLUI::Waveform("");
     inWaveform = new GLUI::RealTimePlot("in");
     outWaveform = new GLUI::RealTimePlot("out");
-    scaleChart = new GLUI::ScalePlot("classy");
-    // DEBUG: i know there are 3 scale fft size
-    for (int i = 0; i < 3; i++) {
-        scaleCharts.push_back(new GLUI::ScalePlot(std::to_string((int)pow(2, (i + 10))).c_str()));
-    }
+    formantChart = new GLUI::ScalePlot("formant");
+    scaleChart = new GLUI::ScalePlot("classy"); // use formant fft size 2048
 
     // DEBUG: read my debug audio
     fileWaveform->LoadAudioFile("debug.wav");
@@ -110,6 +108,7 @@ void debugGLwindow()
         fileWaveform->Update();
         inWaveform->Update();
         outWaveform->Update();
+        formantChart->Update();
         scaleChart->Update();
         
         ImGui::PopStyleVar();
@@ -331,33 +330,40 @@ int main(int argc, char **argv)
         successful = true;
 
         sther->Create(sampleRate, channels, options, ratio, frequencyshift);
-        // DEBUG: i know there are 3 scale fft size
-        for (int i = 0; i < 3; i++) {
-            int bufSize = 0;
-            double* dataPtr = nullptr;
-            int fftSize = pow(2, (i + 10)); // 1024, 2048, 4096
-            if (fftSize == 1024) {
-                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Real, 0, fftSize, &dataPtr, &bufSize);
-                scaleChart->SetScaleInfo(1, 0, fftSize, dataPtr, bufSize);
-                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Imaginary, 0, fftSize, &dataPtr, &bufSize);
-                scaleChart->SetScaleInfo(2, 0, fftSize, dataPtr, bufSize);
-                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Magnitude, 0, fftSize, &dataPtr, &bufSize);
-                scaleChart->SetScaleInfo(3, 0, fftSize, dataPtr, bufSize);
-                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Phase, 0, fftSize, &dataPtr, &bufSize);
-                scaleChart->SetScaleInfo(4, 0, fftSize, dataPtr, bufSize);
-                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::AdvancedPhase, 0, fftSize, &dataPtr, &bufSize);
-                scaleChart->SetScaleInfo(5, 0, fftSize, dataPtr, bufSize);
-                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PreviousMagnitude, 0, fftSize, &dataPtr, &bufSize);
-                scaleChart->SetScaleInfo(6, 0, fftSize, dataPtr, bufSize);
-                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PendingKick, 0, fftSize, &dataPtr, &bufSize);
-                scaleChart->SetScaleInfo(7, 0, fftSize, dataPtr, bufSize);
-                sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Accumulator, 0, fftSize, &dataPtr, &bufSize);
-                scaleChart->SetScaleInfo(8, 0, fftSize, dataPtr, bufSize);
-            }
-        }
+        
+        /* DEBUG: playground with channel data */
         auto ptr_of_shared_ptr = sther->GetChannelData();
         auto formantFFTSize = sther->GetFormantFFTSize();
-        std::cout << "got channel data: formant fft size " << formantFFTSize << " even it's struct but has complex param/function" << std::endl;
+        auto scaleSizes = sther->GetChannelScaleSizes(0);
+        std::cout << "got channel data: formant fft size:" << formantFFTSize << " scale size count:" << scaleSizes << std::endl;
+        int bufSize = 0;
+        double* dataPtr = nullptr;
+        // using scale plot chart drawing formant data
+        sther->GetFormantData(PitchShifting::Stretcher::FormantDataType::Cepstra, 0, &formantFFTSize, &dataPtr, &bufSize);
+        formantChart->SetScaleInfo(1, 0, formantFFTSize, dataPtr, bufSize);
+        sther->GetFormantData(PitchShifting::Stretcher::FormantDataType::Envelope, 0, &formantFFTSize, &dataPtr, &bufSize);
+        formantChart->SetScaleInfo(2, 0, formantFFTSize, dataPtr, bufSize);
+        sther->GetFormantData(PitchShifting::Stretcher::FormantDataType::Spare, 0, &formantFFTSize, &dataPtr, &bufSize);
+        formantChart->SetScaleInfo(3, 0, formantFFTSize, dataPtr, bufSize);
+        int fftSize = formantFFTSize; // scale data just using formant fft size 2048
+        //int fftSize = pow(2, (i + 10)); // 1024, 2048, 4096
+        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Real, 0, fftSize, &dataPtr, &bufSize); /* resolution 100 */
+        scaleChart->SetScaleInfo(1, 0, fftSize, dataPtr, bufSize);
+        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Imaginary, 0, fftSize, &dataPtr, &bufSize);
+        scaleChart->SetScaleInfo(2, 0, fftSize, dataPtr, bufSize);
+        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Magnitude, 0, fftSize, &dataPtr, &bufSize); /* resolution 0.1 */
+        scaleChart->SetScaleInfo(3, 0, fftSize, dataPtr, bufSize);
+        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Phase, 0, fftSize, &dataPtr, &bufSize); /* resolution pi */
+        scaleChart->SetScaleInfo(4, 0, fftSize, dataPtr, bufSize);
+        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::AdvancedPhase, 0, fftSize, &dataPtr, &bufSize);
+        scaleChart->SetScaleInfo(5, 0, fftSize, dataPtr, bufSize);
+        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PreviousMagnitude, 0, fftSize, &dataPtr, &bufSize);
+        scaleChart->SetScaleInfo(6, 0, fftSize, dataPtr, bufSize);
+        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PendingKick, 0, fftSize, &dataPtr, &bufSize); /* so far zero values */
+        scaleChart->SetScaleInfo(7, 0, fftSize, dataPtr, bufSize);
+        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Accumulator, 0, fftSize, &dataPtr, &bufSize); /* resolution 0.1 */
+        scaleChart->SetScaleInfo(8, 0, fftSize, dataPtr, bufSize);
+        
         if (inSource == SourceType::AudioFile) {
             sther->ExpectedInputDuration(inputFrames); // estimate from input file
         }

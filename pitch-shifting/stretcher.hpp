@@ -149,9 +149,19 @@ public:
 
     //DEBUG: try pointer of std::vector<std::shared_ptr<R3Stretcher::ChannelData>>
     void* GetChannelData();
+    
+    /* for getting formant data */
+    enum FormantDataType : int {
+        Cepstra, // fft size
+        Envelope, // buf size
+        Spare // buf size
+    };
     int GetFormantFFTSize();
+    void* GetFormantData(FormantDataType type, int channel, int* fftSize, double** dataPtr, int* bufSize);
+    
+    /* for getting scale data */
     enum ScaleDataType : int {
-        TimeDomain,
+        TimeDomain, // size will be fft size
         Real, // or amplitude
         Imaginary,
         Magnitude,
@@ -161,8 +171,9 @@ public:
         PendingKick,
         Accumulator
     };
-    /* get numbers of FFT sizes for channel data scaling */
-    int GetChannelScaleKeys(int channel, int* fftSizes = nullptr);
+    /* get numbers of FFT sizes for channel data scaling, given allocated fftSizes to get all size value */
+    int GetChannelScaleSizes(int channel, int* fftSizes = nullptr);
+    /* get each scales data ptr */
     void* GetChannelScaleData(ScaleDataType type, int channel, int fftSize, double** dataPtr, int* bufSize);
 
 protected:
