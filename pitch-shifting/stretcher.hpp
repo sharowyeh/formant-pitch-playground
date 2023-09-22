@@ -150,7 +150,20 @@ public:
     //DEBUG: try pointer of std::vector<std::shared_ptr<R3Stretcher::ChannelData>>
     void* GetChannelData();
     int GetFormantFFTSize();
-    void* GetScaleAdvancedPhase(int channel, int fftSize, double** phasePtr, int* bufSize);
+    enum ScaleDataType : int {
+        TimeDomain,
+        Real, // or amplitude
+        Imaginary,
+        Magnitude,
+        Phase,
+        AdvancedPhase,
+        PreviousMagnitude,
+        PendingKick,
+        Accumulator
+    };
+    /* get numbers of FFT sizes for channel data scaling */
+    int GetChannelScaleKeys(int channel, int* fftSizes = nullptr);
+    void* GetChannelScaleData(ScaleDataType type, int channel, int fftSize, double** dataPtr, int* bufSize);
 
 protected:
     // make sure deconstruction will be done

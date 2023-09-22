@@ -13,14 +13,13 @@ public:
 	 */
 	void SetAudioInfo(int samplerate, int channels, float* framePtr, int ptrSize);
 	// NOTE: all realtime plot instances will drawing on the same window(the same window id but identical widget id by surffix) 
-	void Update();
-	void UpdateRealtimeWavPlot(); // time-amp plot scrolling on short time window
+	void Update() override;
+	void UpdatePlot() override; // time-amp plot scrolling on short time window
 
 protected:
 	virtual ~RealTimePlot();
 private:
 	// for identical labels
-	std::string title;
 	std::string realtimePlotEnableLabel;
 	std::string realtimePlotRangeLabel;
 	std::string realtimePlotTitle;

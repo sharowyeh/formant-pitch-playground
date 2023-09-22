@@ -113,16 +113,50 @@ int Stretcher::GetFormantFFTSize()
     return cd->formant->fftSize;
 }
 
-void* Stretcher::GetScaleAdvancedPhase(int channel, int fftSize, double** phasePtr, int* bufSize)
+int Stretcher::GetChannelScaleKeys(int channel, int* fftSizes)
+{
+    return 0;
+}
+
+void* Stretcher::GetChannelScaleData(ScaleDataType type, int channel, int fftSize, double** dataPtr, int* bufSize)
 {
     auto data = pts->getChannelData(channel);
     if (data == nullptr) return nullptr;
-    
+
     auto cd = *static_cast<std::shared_ptr<RubberBand::R3Stretcher::ChannelData>*>(data);
     if (cd->scales.find(fftSize) == cd->scales.end()) return nullptr;
-    
+
     *bufSize = cd->scales[fftSize]->bufSize;
-    *phasePtr = cd->scales[fftSize]->advancedPhase.data();
+    switch (type) {
+    case ScaleDataType::TimeDomain:
+        *bufSize = cd->scales[fftSize]->fftSize; // time domain size is fft block size or windowed size
+        *dataPtr = cd->scales[fftSize]->timeDomain.data();
+        break;
+    case ScaleDataType::Real:
+        *dataPtr = cd->scales[fftSize]->real.data();
+        break;
+    case ScaleDataType::Imaginary:
+        *dataPtr = cd->scales[fftSize]->imag.data();
+        break;
+    case ScaleDataType::Magnitude:
+        *dataPtr = cd->scales[fftSize]->mag.data();
+        break;
+    case ScaleDataType::Phase:
+        *dataPtr = cd->scales[fftSize]->phase.data();
+        break;
+    case ScaleDataType::AdvancedPhase:
+        *dataPtr = cd->scales[fftSize]->advancedPhase.data();
+        break;
+    case ScaleDataType::PreviousMagnitude:
+        *dataPtr = cd->scales[fftSize]->prevMag.data();
+        break;
+    case ScaleDataType::PendingKick:
+        *dataPtr = cd->scales[fftSize]->pendingKick.data();
+        break;
+    case ScaleDataType::Accumulator:
+        *dataPtr = cd->scales[fftSize]->accumulator.data();
+        break;
+    }
     return data;
 }
 

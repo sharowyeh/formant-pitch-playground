@@ -162,8 +162,8 @@
     <ClCompile Include="CtrlForm.cpp" />
     <ClCompile Include="helper.cpp" />
     <ClCompile Include="parameters.cpp" />
-    <ClCompile Include="PhasePlot.cpp" />
     <ClCompile Include="RealTimePlot.cpp" />
+    <ClCompile Include="ScalePlot.cpp" />
     <ClCompile Include="TimeoutPopup.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="pitch-shifting.cpp" />
@@ -192,9 +192,9 @@
     <ClInclude Include="..\imgui\imstb_truetype.h" />
     <ClInclude Include="CtrlForm.h" />
     <ClInclude Include="parameters.h" />
-    <ClInclude Include="PhasePlot.h" />
     <ClInclude Include="PlotChartBase.h" />
     <ClInclude Include="RealTimePlot.h" />
+    <ClInclude Include="ScalePlot.h" />
     <ClInclude Include="TimeoutPopup.h" />
     <ClInclude Include="helper.hpp" />
     <ClInclude Include="stretcher.hpp" />
