@@ -7,22 +7,32 @@ GLUI::ScalePlot::ScalePlot(const char* surffix) : PlotChartBase(surffix),
 	dataPlotTitle = IdenticalLabel("scale");
 }
 
-void GLUI::ScalePlot::SetScaleInfo(int type, int ch, int fftsize, double* dataptr, int size)
+void GLUI::ScalePlot::SetPlotInfo(const char* name, int type, int ch, int fftsize, double* dataptr, int size)
 {
 	fftSize = fftsize;
 	// NOTE: if type+ch 's dataptr or size will change in runtime, ScaleData can not be map key
-	
-	auto exist = plotBuffers.find(ScaleData(type, ch));
+	// scale data identify by type and ch
+	auto exist = plotBuffers.find(ScaleData(nullptr, type, ch));
 	if (exist != plotBuffers.end()) {
 		auto plot = &exist->second;
 		if (plot->MaxSize < size)
 			plot->Resize(size);
 	}
 	else {
-		auto data = ScaleData(type, ch, dataptr, size);
+		auto data = ScaleData(name, type, ch, dataptr, size);
 		AmplitudeBuffer buffer(size);
 		plotBuffers[data] = buffer;
 	}
+}
+
+void GLUI::ScalePlot::SetPlotInfo(int type, int ch, int fftsize, double* dataptr, int size)
+{
+	auto label = std::string("type:")
+		.append(std::to_string(type))
+		.append(" ch:")
+		.append(std::to_string(ch));
+
+	SetPlotInfo(label.c_str(), type, ch, fftsize, dataptr, size);
 }
 
 void GLUI::ScalePlot::UpdatePlot(const ScaleData& data, AmplitudeBuffer& plotBuffer)
