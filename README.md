@@ -48,22 +48,47 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
 
 # rubberband r3 stretcher code trace #
 
-## stretcher settings ##
-- Create, to r2 or r3 Impl depends on options, and ctor with options
+## stretcher class initialization ##
+- Create, to r2 or r3 Impl depends on options, and ctor with options (we only focus on r3)
   - ctor m_limits with given options and sample rate
-    - min out hop = sample rate / 512, max out hop = sample rate / 128 [128-512]
-    - min in hop = 1, max in hop (readahead = sample rate / 64) = sample rate / 32 [1-2048(1024)]
+    - note the round up number is power of 2 which equal-larger than the divided value
+    - min out hop = sample rate / 512, max out hop = sample rate / 128, min to max is [128-512]
+    - min in hop = 1, max in hop = sample rate / 32 (readahead = sample rate / 64), min to max is [1-2048(1024)]
     - if set options windowshort, See note in calculateHop
-  - set atomic time ratio, pitch scale and formant scale
-  - ctor m_guide, for fftband, phaselockband, ... and guidance configurations
-  - TODO:
-  - fft scales[3]:
+  - ctor atomic time ratio, pitch scale and formant scale
+  - ctor m_guide with given sample rate and windowing mode as its own parameters, for fftband, phaselockband,
+    - classification fft size will be rounded up(power of 2 equal-larger) number of sample rate / 32
+      - eg, 48k / 32 = 1500, the round up number is 2048
+    - single window mode: a fixed fft size from classification, half of sample rate as band limit (nyquist criterion)
+      - about nyquist frequency: 
+        - based on nyquist-shannon sampling theorem, the sample rate must be twice higher than the maximum frequency
+        - eg, for audible frequency(20 kHz) must uses 44.1k or 48k sample rate to satisfy analog signal sampling to digital data 
+        - the nyquist frequency is half of sample rate, which means will equal to or higher than the audible frequency,
+          also referred to folding frequency or nyquist limit
+    - multi window mode: 3 fft sizes by, classification * 2, classification and classification / 2
+      - 3 band limits by, 0 to max lower(1100Hz), 0 to nyquist and min higher(4000Hz) to nyquist
+      - note the ordering between fft sizes and band limits I wrote
+    - set guidance configurations based on previous values
+    - note the vaiables of m_guide are relavant to m_limits too
+  - ctor channel assembly vectors by given channel number
+  - ctor rest of parameters, use readahead, inhop and prev in/out hops
+- R3Stretcher initialise followed with ctor
+  - classifer frequency is half of sample rate and higher than 16k
+  - classifer bins is classification fft size(2048) * classifier rate(2.0 by classifer freq / sample rate)
+  - ctor bin segmenter with given bin count and filter length 18 (for bin frequency range calculation? TODO)
+  - ctor bin classifier parameters with given bin count and constant values(? TODO)
+  - init channel data struct (lots of code, TODO)
+  - init scale data struct with fft scales[3] from m_guide band limits:
     - [0] is classification fft size / 2 (eg, 1024),
     - [1] is classification fft size (def block size, 2048),
     - [2] is classification fft size * 2 (eg, 4096)
+
+## stretcher preparation ##
 - maxProcessSize
   - cannot larger than m_limits.overallMaxProcessSize (default 524288)
   - ensure m_channelData cd->inbuf size n*2, cd->outbuf size n*8
+- set FormantScale
+  - TODO
 
 ## stretcher -> process() given buf[c][i] 2d array ##
 - check if inputs need resampling, and loop samples length to write m_channelData(cd) -> inbuf 
