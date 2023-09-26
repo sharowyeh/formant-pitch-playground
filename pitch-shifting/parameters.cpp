@@ -20,6 +20,13 @@ namespace PitchShifting {
 
 Parameters::Parameters(int c, char** v): argc(c), argv(v)
 {
+    checkName(c, v);
+}
+
+void Parameters::checkName(int c, char** v)
+{
+    if (c == 0 || v == nullptr)
+        return;
     myName = std::string(v[0]);
     isR3 =
         ((myName.size() > 3 &&
@@ -30,8 +37,12 @@ Parameters::Parameters(int c, char** v): argc(c), argv(v)
             myName.substr(myName.size() - 7, 7) == "-R3.EXE"));
 }
 
-int Parameters::ParseOptions()
+int Parameters::ParseOptions(int c, char** v)
 {
+    if (c) argc = c;
+    if (v) argv = v;
+    checkName(c, v);
+
     while (1) {
         int optionIndex = 0;
         // full, has_arg, p_flag, val
@@ -90,8 +101,8 @@ int Parameters::ParseOptions()
         case 'h': help = true; break;
         case 'H': fullHelp = true; break;
         case 'V': version = true; break;
-        case 't': ratio *= atof(optarg); haveRatio = true; break;
-        case 'T': ratio *= tempo_convert(optarg); haveRatio = true; break;
+        case 't': timeratio *= atof(optarg); haveRatio = true; break;
+        case 'T': timeratio *= tempo_convert(optarg); haveRatio = true; break;
         case 'D': duration = atof(optarg); haveRatio = true; break;
         case 'p': pitchshift = atof(optarg); haveRatio = true; break;
         case 'f': frequencyshift = atof(optarg); haveRatio = true; break;
@@ -173,8 +184,8 @@ int Parameters::ParseOptions()
         return 2;
     }
 
-    if (ratio <= 0.0) {
-        cerr << "ERROR: Invalid time ratio " << ratio << endl;
+    if (timeratio <= 0.0) {
+        cerr << "ERROR: Invalid time ratio " << timeratio << endl;
         return 1;
     }
 

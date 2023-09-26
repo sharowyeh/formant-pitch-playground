@@ -26,37 +26,22 @@ using std::string;
 
 namespace PitchShifting {
 
-Stretcher::Stretcher(int defBlockSize, int debugLevel) {
+Stretcher::Stretcher(Parameters* parameters, int defBlockSize, int debugLevel) {
     // for port audio initialization
     Pa_Initialize();
     inStream = nullptr;
     outStream = nullptr;
-    //chunkWrite = 0;
 
-    debug = debugLevel;
-    quiet = (debugLevel < 2);
+    debug = debugLevel; //TODO: parameters->debug
+    quiet = (debugLevel < 2 || parameters->quiet);
     cerr << "Constructor default block size:" << defBlockSize << " debug:" << debugLevel << " quiet:" << quiet << endl;
 
     RubberBand::RubberBandStretcher::setDefaultDebugLevel(debugLevel);
     
     Stretcher::pts = nullptr;
     Stretcher::options = 0;
-    // use my own default
-    ratio = 1.0;
-    duration = 0.0;
-    frequencyshift = 1.0;
-    realtime = true;
-    threading = 0;
-    lamination = true;
-    longwin = false;
-    shortwin = false;
-    smoothing = true;
-    hqpitch = false;
-    formant = true;
-    together = false;
-    crispness = -1;
-    faster = false;
-    finer = true;
+    // rubber band stretcher options moved to parameters struct given from caller
+    param = parameters;
 
     freqMapItr = freqMap.begin();
     transients = Transients;
@@ -227,22 +212,32 @@ Stretcher::dispose() {
 int
 Stretcher::SetOptions(bool finer, bool realtime, int typewin, bool smoothing, bool formant,
     bool together, bool hqpitch, bool lamination,
-    int typethreading, int typetransient, int typedetector) {
+    int typethreading, int typetransient, int typedetector, int crispness) {
     options = 0;
 
-    Stretcher::finer = finer;
-    Stretcher::faster = !finer;
     if (finer) {
         options = RubberBandStretcher::OptionEngineFiner;
     }
 
-    Stretcher::realtime = realtime;
-    Stretcher::lamination = lamination;
-    Stretcher::longwin = (typewin == 2);
-    Stretcher::shortwin = (typewin == 1);
-    Stretcher::smoothing = smoothing;
-    Stretcher::formant = formant;
-    Stretcher::together = together;
+    auto longwin = (typewin == 2);
+    auto shortwin = (typewin == 1);
+
+    if (crispness != -1) {
+        cerr << "WARNING: The crispness option effects with transients, lamination or window options" << endl;
+        cerr << "         provided -- crispness will override these other options" << endl;
+
+        switch (crispness) {
+        case -1: crispness = 5; break;
+        case 0: detector = CompoundDetector; transients = NoTransients; lamination = false; longwin = true; shortwin = false; break;
+        case 1: detector = SoftDetector; transients = Transients; lamination = false; longwin = true; shortwin = false; break;
+        case 2: detector = CompoundDetector; transients = NoTransients; lamination = false; longwin = false; shortwin = false; break;
+        case 3: detector = CompoundDetector; transients = NoTransients; lamination = true; longwin = false; shortwin = false; break;
+        case 4: detector = CompoundDetector; transients = BandLimitedTransients; lamination = true; longwin = false; shortwin = false; break;
+        case 5: detector = CompoundDetector; transients = Transients; lamination = true; longwin = false; shortwin = false; break;
+        case 6: detector = CompoundDetector; transients = Transients; lamination = false; longwin = false; shortwin = true; break;
+        };
+    }
+
     if (realtime)    options |= RubberBandStretcher::OptionProcessRealTime;
     if (!lamination) options |= RubberBandStretcher::OptionPhaseIndependent;
     if (longwin)     options |= RubberBandStretcher::OptionWindowLong;
@@ -261,10 +256,8 @@ Stretcher::SetOptions(bool finer, bool realtime, int typewin, bool smoothing, bo
     } else if (hqpitch) {
         options |= RubberBandStretcher::OptionPitchHighQuality;
     }
-    Stretcher::hqpitch = hqpitch;
 
-    Stretcher::threading = typethreading;
-    switch (threading) {
+    switch (typethreading) {
     case 0:
         options |= RubberBandStretcher::OptionThreadingAuto;
         break;
@@ -404,35 +397,6 @@ Stretcher::LoadFreqMap(std::string mapFile, bool pitchToFreq) {
     return true;
 }
 
-void
-Stretcher::SetCrispness(int crispness, int *ptypewin, bool *plamination, int *ptypetransient, int *ptypedetector) {
-    cerr << "WARNING: The crispness option effects with transients, lamination or window options" << endl;
-    cerr << "         provided -- crispness will override these other options" << endl;
-    Stretcher::crispness = crispness;
-    switch (crispness) {
-    case -1: crispness = 5; break;
-    case 0: detector = CompoundDetector; transients = NoTransients; lamination = false; longwin = true; shortwin = false; break;
-    case 1: detector = SoftDetector; transients = Transients; lamination = false; longwin = true; shortwin = false; break;
-    case 2: detector = CompoundDetector; transients = NoTransients; lamination = false; longwin = false; shortwin = false; break;
-    case 3: detector = CompoundDetector; transients = NoTransients; lamination = true; longwin = false; shortwin = false; break;
-    case 4: detector = CompoundDetector; transients = BandLimitedTransients; lamination = true; longwin = false; shortwin = false; break;
-    case 5: detector = CompoundDetector; transients = Transients; lamination = true; longwin = false; shortwin = false; break;
-    case 6: detector = CompoundDetector; transients = Transients; lamination = false; longwin = false; shortwin = true; break;
-    };
-    if (ptypewin) {
-        *ptypewin = (shortwin) ? 1 : (longwin) ? 2 : 0/*standard*/;
-    }
-    if (plamination) {
-        *plamination = lamination;
-    }
-    if (ptypetransient) {
-        *ptypetransient = transients;
-    }
-    if (ptypedetector) {
-        *ptypedetector = detector;
-    }
-}
-
 int
 Stretcher::GetFileFormat(std::string extName) {
     // duplicated from original code blocks 
@@ -500,8 +464,8 @@ Stretcher::LoadInputFile(std::string fileName,
         double induration = double(sfinfoIn.frames) / double(sfinfoIn.samplerate);
         if (induration != 0.0) ratio = duration / induration;
     }
-    Stretcher::ratio = ratio;
-    Stretcher::duration = duration;
+    assert(param->timeratio == ratio); // given from parameter should be equal to its pointer
+    assert(param->duration == duration);
     Stretcher::inputSampleRate = sfinfoIn.samplerate;
     if (Stretcher::inputChannels != sfinfoIn.channels) {
         PrepareInputBuffer(sfinfoIn.channels, defBlockSize, reserveBuffer);
@@ -556,7 +520,7 @@ Stretcher::SetOutputFile(std::string fileName,
 
     sfinfoOut.channels = (channels) ? channels : sfinfoIn.channels;
     sfinfoOut.samplerate = (sampleRate) ? sampleRate : sfinfoIn.samplerate;
-    sfinfoOut.frames = int(sfinfoIn.frames * ratio + 0.1);
+    sfinfoOut.frames = int(sfinfoIn.frames * param->timeratio + 0.1);
     sfinfoOut.format = (format) ? format : sfinfoIn.format;
     sfinfoOut.sections = sfinfoIn.sections;
     sfinfoOut.seekable = sfinfoIn.seekable;
@@ -577,13 +541,18 @@ Stretcher::SetOutputFile(std::string fileName,
 }
 
 void 
-Stretcher::Create(size_t sampleRate, int channels, int options, double timeRatio, double pitchScale) {
+Stretcher::Create(size_t sampleRate, int channels, double timeRatio, double pitchScale) {
     if (pts) {
         delete pts;
     }
+
+    // caller no longer care about SetOptions()
+    SetOptions(param->finer, param->realtime, param->typewin, param->smoothing, param->formant, param->together,
+        param->hqpitch, param->lamination, param->threading, param->transients, param->detector, param->crispness);
+
     pts = new RubberBand::RubberBandStretcher(sampleRate, channels, options, timeRatio, pitchScale);
-    Stretcher::ratio = timeRatio;
-    Stretcher::frequencyshift = pitchScale;
+    assert(param->timeratio == timeRatio); // given from parameter should be equal to its pointer
+    assert(param->frequencyshift == pitchScale);
 }
 
 void
@@ -670,7 +639,7 @@ Stretcher::StudyInputSound(/*int blockSize*/) {
     if (!pts) return;
 
     // check mode and loaded input sound
-    if (realtime) {
+    if (param->realtime) {
         cerr << "Pass 1: Studying... is unavailable in realtime mode" << endl;
         return;
     }
@@ -732,7 +701,7 @@ int
 Stretcher::ProcessStartPad() {
     if (!pts) return 0;
     int toDrop = pts->getStartDelay();
-    if (!realtime) return toDrop;
+    if (!param->realtime) return toDrop;
 
     int blockSize = Stretcher::defBlockSize; // only for original code design
 
@@ -770,7 +739,7 @@ Stretcher::ApplyFreqMap(size_t countIn,/* int blockSize,*/ int *pAdjustedBlockSi
         size_t nextFreqFrame = freqMapItr->first;
         // iterate key frame to counted input frame and apply the target pitch
         if (nextFreqFrame <= countIn) {
-            double s = frequencyshift * freqMapItr->second;
+            double s = param->frequencyshift * freqMapItr->second;
             if (debug > 0) {
                 cerr << "at frame " << countIn
                     << " (requested at " << freqMapItr->first
@@ -897,7 +866,7 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
             break;
         }
         if (avail == 0 && isFinal) {
-            if (realtime ||
+            if (param->realtime ||
                 (options & RubberBandStretcher::OptionThreadingNever)) {
                 break;
             } else {
@@ -935,9 +904,9 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
 
         // process frames count alignment between input and output file in realtime mode,
         // NOTE: but it may not necessary for my real purpose w/o input and output files
-        if (realtime && isFinal && sndfileIn) {
+        if (param->realtime && isFinal && sndfileIn) {
             // (in offline mode the stretcher handles this itself)
-            size_t ideal = size_t(sfinfoIn.frames * ratio);
+            size_t ideal = size_t(sfinfoIn.frames * param->timeratio);
             if (debug > 2) {
                 cerr << "at end, ideal = " << ideal
                     << ", countOut = " << *pCountOut

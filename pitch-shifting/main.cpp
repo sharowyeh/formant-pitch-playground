@@ -126,64 +126,31 @@ int main(int argc, char **argv)
     std::thread t(debugGLwindow);
     t.detach();
 
-
-    auto p = new PitchShifting::Parameters(argc, argv);
-    auto code = p->ParseOptions();
+    PitchShifting::Parameters param;
+    auto code = param.ParseOptions(argc, argv);
     if (code >= 0) return code;
-    //TODO: based on parameters packed standalone given p to sther?
-    auto crispness = p->crispness;
-    auto typewin = p->typewin;
-    auto lamination = p->lamination;
-    auto transients = p->transients;
-    auto detector = p->detector;
-    auto timeMapFile = p->timeMapFile;
-    auto freqMapFile = p->freqMapFile;
-    auto pitchMapFile = p->pitchMapFile;
-    auto inAudioParam = p->inAudioParam;
-    auto outAudioParam = p->outAudioParam;
-    auto ratio = p->ratio;
-    auto duration = p->duration;
-    auto listdev = p->listdev;
-    auto finer = p->finer;
-    auto realtime = p->realtime;
-    auto smoothing = p->smoothing;
-    auto formant = p->formant;
-    auto together = p->together;
-    auto hqpitch = p->hqpitch;
-    auto threading = p->threading;
-    auto pitchshift = p->pitchshift;
-    auto frequencyshift = p->frequencyshift;
-    auto freqOrPitchMapSpecified = p->freqOrPitchMapSpecified;
-    auto formantshift = p->formantshift;
-    auto inputgaindb = p->inputgaindb;
-    auto ignoreClipping = p->ignoreClipping;
-    auto quiet = p->quiet;
 
     // start stretcher class initialization here
     const int defBlockSize = 1024;
-    PitchShifting::Stretcher *sther = new PitchShifting::Stretcher(defBlockSize, 1);
+    PitchShifting::Stretcher *sther = new PitchShifting::Stretcher(&param, defBlockSize, 1);
 
-    if (crispness != -1) {
-        sther->SetCrispness(crispness, &typewin, &lamination, &transients, &detector);
-    }
-
-    sther->LoadTimeMap(timeMapFile);
-    bool pitchToFreq = freqMapFile.empty();
-    sther->LoadFreqMap((pitchToFreq ? pitchMapFile : freqMapFile), pitchToFreq);
+    sther->LoadTimeMap(param.timeMapFile);
+    bool pitchToFreq = param.freqMapFile.empty();
+    sther->LoadFreqMap((pitchToFreq ? param.pitchMapFile : param.freqMapFile), pitchToFreq);
 
     SourceType inSource = SourceType::Unknown;
     SourceType outSource = SourceType::Unknown;
     std::string extIn, extOut;
-    for (int i = strlen(inAudioParam); i > 0; ) {
-        if (inAudioParam[--i] == '.') {
-            extIn = inAudioParam + i + 1;
+    for (int i = strlen(param.inAudioParam); i > 0; ) {
+        if (param.inAudioParam[--i] == '.') {
+            extIn = param.inAudioParam + i + 1;
             inSource = SourceType::AudioFile;
             break;
         }
     }
-    for (int i = strlen(outAudioParam); i > 0; ) {
-        if (outAudioParam[--i] == '.') {
-            extOut = outAudioParam + i + 1;
+    for (int i = strlen(param.outAudioParam); i > 0; ) {
+        if (param.outAudioParam[--i] == '.') {
+            extOut = param.outAudioParam + i + 1;
             outSource = SourceType::AudioFile;
             break;
         }
@@ -197,10 +164,10 @@ int main(int argc, char **argv)
     // check input/output audio file or device
     bool checkAudio = true;
     if (inSource) {
-        checkAudio = sther->LoadInputFile(inAudioParam, &sampleRate, &channels, &format, &inputFrames, ratio, duration);
+        checkAudio = sther->LoadInputFile(param.inAudioParam, &sampleRate, &channels, &format, &inputFrames, param.timeratio, param.duration);
     }
     if (outSource) {
-        checkAudio &= sther->SetOutputFile(outAudioParam, sampleRate, 2, format);
+        checkAudio &= sther->SetOutputFile(param.outAudioParam, sampleRate, 2, format);
     }
     if (checkAudio == false) {
         cerr << "Set input/output to files but invalid" << endl;
@@ -211,7 +178,7 @@ int main(int argc, char **argv)
     std::vector<SourceDesc> devices;
     int devCount = sther->ListAudioDevices(devices);
     // list audio device only
-    if (listdev) {
+    if (param.listdev) {
         delete sther;
         return 0;
     }
@@ -234,13 +201,13 @@ int main(int argc, char **argv)
     int inDevIndex = 43;
     // 1: mymacout48k, 15: mywinout44k(mme), 26/28/34: mywinout48k(wdm/aux/vcable)
     int outDevIndex = 26;
-    if (checkNumuric(inAudioParam, &inDevIndex)) {
+    if (checkNumuric(param.inAudioParam, &inDevIndex)) {
         checkAudio = sther->SetInputStream(inDevIndex, &sampleRate, &channels);
         if (checkAudio) {
             inSource = SourceType::AudioDevice;
         }
     }
-    if (checkNumuric(outAudioParam, &outDevIndex)) {
+    if (checkNumuric(param.outAudioParam, &outDevIndex)) {
         checkAudio &= sther->SetOutputStream(outDevIndex);
         if (checkAudio) {
             outSource = SourceType::AudioDevice;
@@ -272,42 +239,39 @@ int main(int argc, char **argv)
         sther->outFrame, 
         defBlockSize * sther->outInfo->maxOutputChannels);
 
-    RubberBandStretcher::Options options = 0;
-    options = sther->SetOptions(finer, realtime, typewin, smoothing, formant,
-        together, hqpitch, lamination, threading, transients, detector);
-
-    if (pitchshift != 0.0) {
-        frequencyshift *= pow(2.0, pitchshift / 12.0);
+    if (param.pitchshift != 0.0) {
+        param.frequencyshift *= pow(2.0, param.pitchshift / 12.0);
+        cerr << "Pitch shift semitones: " << param.pitchshift << endl;
     }
 
-    cerr << "Using time ratio " << ratio;
+    cerr << "Using time ratio " << param.timeratio;
 
-    if (!freqOrPitchMapSpecified) {
-        cerr << " and frequency ratio " << frequencyshift << endl;
+    if (!param.freqOrPitchMapSpecified) {
+        cerr << " and frequency ratio " << param.frequencyshift << " for pitch shift" << endl;
     } else {
-        cerr << " and initial frequency ratio " << frequencyshift << endl;
+        cerr << " and initial frequency ratio " << param.frequencyshift << "for pitch shift" << endl;
     }
 
     // NOTE: formant adjustment only works to r3
-    if (formantshift != 0.0) {
-        cerr << "Formant shift semitones: " << formantshift << endl;
+    if (param.formantshift != 0.0) {
+        cerr << "Formant shift semitones: " << param.formantshift << endl;
     }
-    double formantFactor = pow(2.0, formantshift / 12.0);
+    double formantShift = pow(2.0, param.formantshift / 12.0);
 
     // default formant scale = 1.0 / freq(pitch)shift if formant enabled
     double formantScale = 0.0;
-    if (formant) {
+    if (param.formant) {
         // NOTE: pitch changes also affact formant scaling
-        formantScale = 1.0 / frequencyshift;
-        cerr << "Formant preserved default " << formantScale << "(from pitch shift)" << endl;
-        formantScale *= formantFactor;
-        cerr << "Formant factor " << formantFactor << ", formant scale " << formantScale << endl;
+        formantScale = 1.0 / param.frequencyshift;
+        cerr << "Formant preserved default " << formantScale << " by pitch shift" << endl;
+        formantScale *= formantShift;
+        cerr << "Formant ratio " << formantShift << ", results formant scale " << formantScale << endl;
     }
     
     // apply gain, voltage level for audio signal will be pow(10.f, db / 20.f)
-    if (inputgaindb != 0.0) {
-        cerr << "Input gain db: " << inputgaindb << endl;
-        double inputgainlv = pow(10.f, inputgaindb / 20.f);
+    if (param.inputgaindb != 0.0) {
+        cerr << "Input gain db: " << param.inputgaindb << endl;
+        double inputgainlv = pow(10.f, param.inputgaindb / 20.f);
         cerr << "Input gain level: " << inputgainlv << endl;
         sther->SetInputGain(inputgainlv);
     }
@@ -329,7 +293,7 @@ int main(int argc, char **argv)
                           // gain, if clipping occurs
         successful = true;
 
-        sther->Create(sampleRate, channels, options, ratio, frequencyshift);
+        sther->Create(sampleRate, channels, param.timeratio, param.frequencyshift);
         
         /* DEBUG: playground with channel data */
         auto ptr_of_shared_ptr = sther->GetChannelData();
@@ -369,12 +333,12 @@ int main(int argc, char **argv)
         }
         sther->MaxProcessSize(defBlockSize);
         sther->FormantScale(formantScale);
-        sther->SetIgnoreClipping(ignoreClipping);
+        sther->SetIgnoreClipping(param.ignoreClipping);
 
         sther->StartInputStream();
         sther->StartOutputStream();
 
-        if (!realtime) {
+        if (!param.realtime) {
             sther->StudyInputSound(); // only works on input data source is file
         }
 
@@ -409,7 +373,7 @@ int main(int argc, char **argv)
             successful = sther->RetrieveAvailableData(&countOut, isFinal);
             //if (!successful) break;
             
-            if (frame == 0 && !realtime && !quiet) {
+            if (frame == 0 && !param.realtime && !param.quiet) {
                 cerr << "Pass 2: Processing..." << endl;
             }
 
@@ -418,7 +382,7 @@ int main(int argc, char **argv)
                 int p = int((double(frame) * 100.0) / inputFrames);
                 if (p > percent || frame == 0) {
                     percent = p;
-                    if (!quiet) {
+                    if (!param.quiet) {
                         cerr << "\r" << percent << "% ";
                     }
                 }
@@ -441,7 +405,7 @@ int main(int argc, char **argv)
         if (!successful) {
             cerr << "WARNING: found clipping during process, decrease gain and process from begin again.." << endl;
             cerr << "         but I want to ignore this for realtime process.." << endl;
-            if (!realtime) {
+            if (!param.realtime) {
                 // TODO: new functions to reopen or seek 0 to input/output files for
                 //       re-entering while (!successful) loop
                 //continue;
@@ -449,7 +413,7 @@ int main(int argc, char **argv)
             successful = true; // ignore clipping
         }
     
-        if (!quiet) {
+        if (!param.quiet) {
             cerr << "\r    " << endl;
         }
 
@@ -465,15 +429,15 @@ int main(int argc, char **argv)
     sther->StopInputStream();
     sther->StopOutputStream();
 
-    free(inAudioParam);
-    free(outAudioParam);
+    free(param.inAudioParam);
+    free(param.outAudioParam);
 
-    if (!quiet) {
+    if (!param.quiet) {
 
         cerr << "in: " << countIn << ", out: " << countOut
              << ", ratio: " << float(countOut)/float(countIn)
-             << ", ideal output: " << lrint(countIn * ratio)
-             << ", error: " << int(countOut) - lrint(countIn * ratio)
+             << ", ideal output: " << lrint(countIn * param.timeratio)
+             << ", error: " << int(countOut) - lrint(countIn * param.timeratio)
              << endl;
 
 #ifdef _WIN32

@@ -37,6 +37,8 @@
 #include "src/common/RingBuffer.h"
 // for ChannelData struct
 #include <src/finer/R3Stretcher.h>
+// for all options to replace partial local variables
+#include "parameters.h"
 
 using std::cerr;
 using std::endl;
@@ -65,21 +67,18 @@ struct SourceDesc {
 
 class Stretcher {
 public:
-    Stretcher(int defBlockSize = 1024, int dbgLevel = 1);
+    Stretcher(Parameters* parameters, int defBlockSize = 1024, int dbgLevel = 1);
     virtual ~Stretcher();
-
+    // function can be private calls from stretcher itself which caller does not care at all
+    // merge crispness with overwriting partial options which mainly works on R2(faster) engine
     int SetOptions(bool finer, bool realtime, int typewin, bool smoothing, bool formant,
         bool together, bool hipitch, bool lamination,
-        int typethreading, int typetransient, int typedetector);
+        int typethreading, int typetransient, int typedetector, int crispness = -1);
     // so far im not using time map...
     bool LoadTimeMap(std::string mapFile);
     void SetKeyFrameMap() { if (pts && timeMap.size() > 0) pts->setKeyFrameMap(timeMap); };
     // redo or before set options to correct given parameters for rubberband
     bool LoadFreqMap(std::string mapFile, bool pitchToFreq);
-    // mainly works on R2(faster) engine, redo or before set options to correct given parameters for rubberband
-    void SetCrispness(int crispness = -1, 
-        int *ptypewin = nullptr, bool *plamination = nullptr,
-        int *ptypetransient = nullptr, int *ptypedetector = nullptr);
     // clipping check during process frame
     void SetIgnoreClipping(bool ignore) { ignoreClipping = ignore; };
 
@@ -94,7 +93,7 @@ public:
         int sampleRate, int channels, int format);
 
     // basically given ctor params to fullfill RubberBandStretcher
-    void Create(size_t sampleRate, int channels, int options, double timeRatio, double pitchScale);
+    void Create(size_t sampleRate, int channels, double timeRatio, double pitchScale);
     // works on input file, ignore in realtime mode
     void ExpectedInputDuration(size_t samples);
     void MaxProcessSize(size_t samples);
@@ -203,25 +202,8 @@ private:
     RubberBandStretcher *pts;
     RubberBandStretcher::Options options;
     
-    // estimate frame ratio from input sound for output, default 1.0
-    double ratio;
-    // estimate output sound file duration, default unset(0.0)
-    double duration;
-    // percentage, default 1.0
-    double frequencyshift;
-    bool realtime;
-    int threading;
-    bool lamination;
-    bool longwin;
-    bool shortwin;
-    bool smoothing;
-    bool hqpitch;
-    bool formant;
-    bool together;
-    // default -1
-    int crispness;
-    bool faster;
-    bool finer;
+    // options from CLI or GUI from Create() to rubber band stretcher creation
+    Parameters* param;
 
     std::map<size_t, size_t> timeMap;
     std::map<size_t, double> freqMap;

@@ -6,9 +6,12 @@ namespace PitchShifting {
 
 class Parameters {
 public:
-    double ratio = 1.0;
+    // estimate frame ratio from input sound for output, default 1.0
+    double timeratio = 1.0;
+    // estimate output sound file duration, default unset(0.0)
     double duration = 0.0;
     double pitchshift = 0.0;
+    // percentage, default 1.0
     double frequencyshift = 1.0;
     double formantshift = 0.0; //semitones
     int debug = 3;
@@ -53,17 +56,18 @@ public:
 
     int typewin = 0/*0=OptionWindowStandard*/;
 
-    Parameters(int c, char** v);
-
+    Parameters(int c = 0, char** v = nullptr);
     /* 
-    * DEBUG: give a try
-    * \return 1=failure, -1=pass(continue), 0=pass(leave process)
-    */
-    int ParseOptions();
+     * given CLI arguments will overwrite arg from constructure
+     * \return 1=failure, -1=pass(continue), 0=pass(leave process)
+     */
+    int ParseOptions(int c = 0, char** v = nullptr);
 
 private:
     int argc;
     char** argv;
+    /* for `r3` checks */
+    void checkName(int c, char** v);
 };
 
 }; // namespace PitchShifting
