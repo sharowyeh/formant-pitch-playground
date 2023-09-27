@@ -67,14 +67,35 @@ GLUI::ScalePlot* formantChart = nullptr;
 GLUI::ScalePlot* scaleChart = nullptr;
 //std::vector<GLUI::ScalePlot*> scaleCharts;
 
-//TODO: not integrate to main yet
-void debugGLwindow()
+std::thread* uiThread = nullptr;
+/* design states for main thread communication, refer to FnWindowStates */
+std::atomic<int> uiRenderingState = 0;
+/* for window life cycle */
+typedef void (*fnWindowStateChanged)(int);
+/* for ctrl form button action */
+typedef void (*fnButtonClicked)(std::string, int);
+enum FnWindowStates :int {
+    NONE,
+    INITIALIZED, // ready to frame rendering
+    CLOSING,
+    CLOSED,
+    RENDERING_FINISHED,
+    DESTROYED
+};
+enum FnCallbackIds :int {
+    ON_WINDOW_STATE_CHANGED,
+    ON_BUTTON_CLICKED
+};
+std::map<int, void*> uiCallbackFnMap;
+
+void uiThreadRun(const std::map<int, void*>& cbFnMapRef)
 {
     //DEBUG: try init gui window here
     window = GLUI::Window::Create("Rubberband GUI", 1366, 768);
     window->OnRenderFrame = [](GLUI::Window* wnd) {
         // is the same afterward the window->PrepareFrame()
     };
+    //TODO: design fn map in a class to pass through parent cb in window callback lambda, like [this](wnd) {...}
     window->OnWindowClosing = [](GLUI::Window* wnd) {
         printf("on window close!\n");
         if (leavePopup) {
@@ -85,6 +106,7 @@ void debugGLwindow()
         }
     };
     ctrlForm = new GLUI::CtrlForm(window->GetGlfwWindow());
+    ctrlForm->OnButtonClicked = (fnButtonClicked(cbFnMapRef.at(ON_BUTTON_CLICKED)));
     leavePopup = new GLUI::TimeoutPopup(window->GetGlfwWindow());
     leavePopup->OnTimeoutElapsed = [](GLFWwindow* wnd) {
         printf("on timeout elapsed!\n");
@@ -99,6 +121,9 @@ void debugGLwindow()
 
     // DEBUG: read my debug audio
     fileWaveform->LoadAudioFile("debug.wav");
+    uiRenderingState = INITIALIZED;
+    if (cbFnMapRef.at(ON_WINDOW_STATE_CHANGED)) // can't use [] because it's const
+        ((fnWindowStateChanged)cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))(INITIALIZED);
     while (!window->PrepareFrame()) {
         // just because want curvy corner, must pair with PopStyleVar() restore style changes for rendering loop
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 4.f);
@@ -117,14 +142,42 @@ void debugGLwindow()
         
         window->SwapWindow();
     }
+    uiRenderingState = RENDERING_FINISHED;
+    if (cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))
+        ((fnWindowStateChanged)cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))(RENDERING_FINISHED);
     window->Destroy();
+    uiRenderingState = DESTROYED;
+    if (cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))
+        ((fnWindowStateChanged)cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))(DESTROYED);
+}
+
+void onWindowStateChanged(int state) {
+    cerr << "Window state: " << state << endl;
+}
+
+void onButtonClicked(std::string name, int param) {
+    cerr << "Button: " << name.c_str() << " param: " << param << endl;
+}
+
+void setGLWindow()
+{
+    // only run once
+    if (uiThread) return;
+    // init callback function pointers
+    uiCallbackFnMap.clear();
+    uiCallbackFnMap[ON_WINDOW_STATE_CHANGED] = &onWindowStateChanged;
+    uiCallbackFnMap[ON_BUTTON_CLICKED] = &onButtonClicked;
+    // UI thread reporting GUI states
+    uiRenderingState = 0;
+    uiThread = new std::thread(uiThreadRun, uiCallbackFnMap);
+    //DEBUG: it still better join the thread to fully control gui life cycle
+    uiThread->detach();
 }
 
 int main(int argc, char **argv)
 {
     //DEBUG: try calls ui on another thread
-    std::thread t(debugGLwindow);
-    t.detach();
+    setGLWindow();
 
     PitchShifting::Parameters param;
     auto code = param.ParseOptions(argc, argv);

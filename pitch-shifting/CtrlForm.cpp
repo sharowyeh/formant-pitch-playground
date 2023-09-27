@@ -90,7 +90,9 @@ void GLUI::CtrlForm::Render()
 	}
 
 	if (ImGui::Button("hello")) {
-
+		if (OnButtonClicked) {
+			OnButtonClicked(string("hello"), 1);
+		}
 	}
 	ImGui::SameLine();
 	ImGui::Text("%d", inSrcIndex);

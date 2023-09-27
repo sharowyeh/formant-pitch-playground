@@ -12,6 +12,8 @@ class CtrlForm {
 public:
 	CtrlForm(GLFWwindow* window);
 	~CtrlForm();
+	
+	void(*OnButtonClicked)(string name, int param) = nullptr;
 
 	void SetInputSourceList(std::vector<PitchShifting::SourceDesc> devices, int defaultSelection = -1);
 	void SetOutputSourceList(std::vector<PitchShifting::SourceDesc> devices, int defaultSelection = -1);
