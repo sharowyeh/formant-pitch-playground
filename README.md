@@ -82,13 +82,18 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
     - [0] is classification fft size / 2 (eg, 1024),
     - [1] is classification fft size (def block size, 2048),
     - [2] is classification fft size * 2 (eg, 4096)
+  - init resampler for realtime option, api from 3rd party lib or built-in class
+  - calc processing in hop size by m_limits and estimated output effect by pitch/ratio/formant changes
 
 ## stretcher preparation ##
 - maxProcessSize
   - cannot larger than m_limits.overallMaxProcessSize (default 524288)
   - ensure m_channelData cd->inbuf size n*2, cd->outbuf size n*8
 - set FormantScale
-  - TODO
+  - formant scale for input fft factor changes based on the output fft
+  - time ratio or pitch shift also affact the formant scale on frequency bins,
+    that need to multiply the pitch(frequency) adjustment
+  - refer to analyseFormant(mainly) and pre/post resampling
 
 ## stretcher -> process() given buf[c][i] 2d array ##
 - check if inputs need resampling, and loop samples length to write m_channelData(cd) -> inbuf 
