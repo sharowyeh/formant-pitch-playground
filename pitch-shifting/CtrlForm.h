@@ -15,8 +15,7 @@ public:
 	
 	void(*OnButtonClicked)(string name, int param) = nullptr;
 
-	void SetInputSourceList(std::vector<PitchShifting::SourceDesc> devices, int defaultSelection = -1);
-	void SetOutputSourceList(std::vector<PitchShifting::SourceDesc> devices, int defaultSelection = -1);
+	void SetAudioDeviceList(std::vector<PitchShifting::SourceDesc>& devices, int defInDevIndex = -1, int defOutDevIndex = -1);
 
 	void Render();
 private:

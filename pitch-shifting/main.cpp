@@ -69,7 +69,9 @@ GLUI::ScalePlot* scaleChart = nullptr;
 
 std::thread* uiThread = nullptr;
 /* design states for main thread communication, refer to FnWindowStates */
-std::atomic<int> uiRenderingState = 0;
+std::atomic<int> uiWindowState = 0;
+/* design button starting flag when gui accquire stretcher processing */
+std::atomic<bool> uiStartEnabled = false;
 /* for window life cycle */
 typedef void (*fnWindowStateChanged)(int);
 /* for ctrl form button action */
@@ -88,9 +90,10 @@ enum FnCallbackIds :int {
 };
 std::map<int, void*> uiCallbackFnMap;
 
-void uiThreadRun(const std::map<int, void*>& cbFnMapRef)
+void uiThreadRun(const std::map<int, void*>& cbFnMapRef, PitchShifting::Parameters* paramPtr)
 {
-    //DEBUG: try init gui window here
+    cerr << "UI thread debug level: " << paramPtr->debug << endl;
+    //DEBUG: singleton window instance
     window = GLUI::Window::Create("Rubberband GUI", 1366, 768);
     window->OnRenderFrame = [](GLUI::Window* wnd) {
         // is the same afterward the window->PrepareFrame()
@@ -121,7 +124,7 @@ void uiThreadRun(const std::map<int, void*>& cbFnMapRef)
 
     // DEBUG: read my debug audio
     fileWaveform->LoadAudioFile("debug.wav");
-    uiRenderingState = INITIALIZED;
+    uiWindowState = INITIALIZED;
     if (cbFnMapRef.at(ON_WINDOW_STATE_CHANGED)) // can't use [] because it's const
         ((fnWindowStateChanged)cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))(INITIALIZED);
     while (!window->PrepareFrame()) {
@@ -142,11 +145,11 @@ void uiThreadRun(const std::map<int, void*>& cbFnMapRef)
         
         window->SwapWindow();
     }
-    uiRenderingState = RENDERING_FINISHED;
+    uiWindowState = RENDERING_FINISHED;
     if (cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))
         ((fnWindowStateChanged)cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))(RENDERING_FINISHED);
     window->Destroy();
-    uiRenderingState = DESTROYED;
+    uiWindowState = DESTROYED;
     if (cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))
         ((fnWindowStateChanged)cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))(DESTROYED);
 }
@@ -157,9 +160,10 @@ void onWindowStateChanged(int state) {
 
 void onButtonClicked(std::string name, int param) {
     cerr << "Button: " << name.c_str() << " param: " << param << endl;
+    uiStartEnabled = (param == 1) ? true: false;
 }
 
-void setGLWindow()
+void setGLWindow(PitchShifting::Parameters* param)
 {
     // only run once
     if (uiThread) return;
@@ -168,21 +172,61 @@ void setGLWindow()
     uiCallbackFnMap[ON_WINDOW_STATE_CHANGED] = &onWindowStateChanged;
     uiCallbackFnMap[ON_BUTTON_CLICKED] = &onButtonClicked;
     // UI thread reporting GUI states
-    uiRenderingState = 0;
-    uiThread = new std::thread(uiThreadRun, uiCallbackFnMap);
+    uiWindowState = NONE;
+    uiStartEnabled = false;
+    auto bound = std::bind(uiThreadRun, uiCallbackFnMap, param);
+    uiThread = new std::thread(bound);
     //DEBUG: it still better join the thread to fully control gui life cycle
     uiThread->detach();
 }
 
+void mapDataPtrToGuiPlot(PitchShifting::Stretcher* sther) {
+
+    auto ptr_of_shared_ptr = sther->GetChannelData();
+    auto formantFFTSize = sther->GetFormantFFTSize();
+    auto scaleSizes = sther->GetChannelScaleSizes(0);
+    std::cout << "got channel data: formant fft size:" << formantFFTSize << " scale size count:" << scaleSizes << std::endl;
+    int bufSize = 0;
+    double* dataPtr = nullptr;
+    // using scale plot chart drawing formant data
+    sther->GetFormantData(PitchShifting::Stretcher::FormantDataType::Cepstra, 0, &formantFFTSize, &dataPtr, &bufSize);
+    formantChart->SetPlotInfo("Ceps", 1, 0, formantFFTSize, dataPtr, bufSize);
+    sther->GetFormantData(PitchShifting::Stretcher::FormantDataType::Envelope, 0, &formantFFTSize, &dataPtr, &bufSize);
+    formantChart->SetPlotInfo("Envelop", 2, 0, formantFFTSize, dataPtr, bufSize);
+    sther->GetFormantData(PitchShifting::Stretcher::FormantDataType::Spare, 0, &formantFFTSize, &dataPtr, &bufSize);
+    formantChart->SetPlotInfo("Spare", 3, 0, formantFFTSize, dataPtr, bufSize);
+    int fftSize = formantFFTSize; // scale data just using formant fft size 2048
+    //int fftSize = pow(2, (i + 10)); // 1024, 2048, 4096
+    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Real, 0, fftSize, &dataPtr, &bufSize); /* resolution 100 */
+    scaleChart->SetPlotInfo("Real", 1, 0, fftSize, dataPtr, bufSize);
+    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Imaginary, 0, fftSize, &dataPtr, &bufSize);
+    scaleChart->SetPlotInfo("Imag", 2, 0, fftSize, dataPtr, bufSize);
+    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Magnitude, 0, fftSize, &dataPtr, &bufSize); /* resolution 0.1 */
+    scaleChart->SetPlotInfo("Mag", 3, 0, fftSize, dataPtr, bufSize);
+    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PreviousMagnitude, 0, fftSize, &dataPtr, &bufSize);
+    scaleChart->SetPlotInfo("PrevMag", 6, 0, fftSize, dataPtr, bufSize);
+    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Phase, 0, fftSize, &dataPtr, &bufSize); /* resolution pi */
+    scaleChart->SetPlotInfo("Phase", 4, 0, fftSize, dataPtr, bufSize);
+    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::AdvancedPhase, 0, fftSize, &dataPtr, &bufSize);
+    scaleChart->SetPlotInfo("AdPhase", 5, 0, fftSize, dataPtr, bufSize);
+    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PendingKick, 0, fftSize, &dataPtr, &bufSize); /* so far zero values */
+    scaleChart->SetPlotInfo("Kick", 7, 0, fftSize, dataPtr, bufSize);
+    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Accumulator, 0, fftSize, &dataPtr, &bufSize); /* resolution 0.1 */
+    scaleChart->SetPlotInfo("Accu", 8, 0, fftSize, dataPtr, bufSize);
+}
+
 int main(int argc, char **argv)
 {
-    //DEBUG: try calls ui on another thread
-    setGLWindow();
-
     PitchShifting::Parameters param;
     auto code = param.ParseOptions(argc, argv);
     if (code >= 0) return code;
 
+    //DEBUG: force use gui for gui development
+    param.gui = true;
+    if (param.gui) {
+        setGLWindow(&param);
+    }
+    
     // start stretcher class initialization here
     const int defBlockSize = 1024;
     PitchShifting::Stretcher *sther = new PitchShifting::Stretcher(&param, defBlockSize, 1);
@@ -236,20 +280,6 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    //DEBUG: append list to control form
-    std::vector<SourceDesc> inputSources;
-    // use copy if selecting items to another vector
-    std::copy_if(devices.begin(), devices.end(), std::back_inserter(inputSources), [](SourceDesc& item) {
-        return item.inputChannels > 0;
-        });
-    ctrlForm->SetInputSourceList(inputSources);
-    
-    std::vector<SourceDesc> outputSources;
-    std::copy_if(devices.begin(), devices.end(), std::back_inserter(outputSources), [](SourceDesc& item) {
-        return item.outputChannels > 0;
-        });
-    ctrlForm->SetOutputSourceList(outputSources);
-
     // 0/2: mymacin48k, 9: mywinin44k(mme), 43: mywinin48k
     int inDevIndex = 43;
     // 1: mymacout48k, 15: mywinout44k(mme), 26/28/34: mywinout48k(wdm/aux/vcable)
@@ -259,18 +289,44 @@ int main(int argc, char **argv)
         if (checkAudio) {
             inSource = SourceType::AudioDevice;
         }
+        else {
+            inDevIndex = -1;
+        }
     }
     if (checkNumuric(param.outAudioParam, &outDevIndex)) {
         checkAudio &= sther->SetOutputStream(outDevIndex);
         if (checkAudio) {
             outSource = SourceType::AudioDevice;
         }
+        else {
+            outDevIndex = -1;
+        }
     }
 
+    if (param.gui) {
+        // append list to control form, and defualt selection from cli options
+        ctrlForm->SetAudioDeviceList(devices, inDevIndex, outDevIndex);
+    }
+    
     if (checkAudio == false) {
-        cerr << "Set input/output audio device failed" << endl;
-        delete sther;
-        return 1;
+        if (param.gui == false) {
+        // leave app if no available audio sources in console mode
+            cerr << "Set input/output audio device failed" << endl;
+            delete sther;
+            return 1;
+        }
+        else {
+            // wait button event(from button clicked callback) after audio device selection in gui mode
+            while (uiStartEnabled == false) {
+                Sleep(100);
+                if (uiWindowState == FnWindowStates::DESTROYED) {
+                    cerr << "CLI given in/out source failed and GUI closed" << endl;
+                    delete sther;
+                    return 1;
+                }
+            }
+            //TODO: get selection and re-check audio device can be opened
+        }
     }
 
     // if use capture device as input, given duration or infinity -1?
@@ -278,19 +334,21 @@ int main(int argc, char **argv)
         inputFrames = (int)INFINITE;//sampleRate * 3600 * 3; // 3hr for long duration test 
     }
 
-    //DEBUG: since GUI init in another thread, ensure all GUI are ready
-    while (!fileWaveform) {
-        Sleep(100);
-    }
+    //DEBUG: section for GUI initialization before stretcher creation(after ctor, but before rubber band configuration)
+    if (param.gui) {
+        // wait until all GUI classes constructed in another thread (mainly for file waveform loading file)
+        while (uiWindowState != FnWindowStates::INITIALIZED) {
+            Sleep(100);
+        }
 
-    //DEBUG: set audio information to GUI plot, given inFrame must afterward sther->SetInputStream for buffer initialization
-    inWaveform->SetAudioInfo(sampleRate, channels, sther->inFrame, defBlockSize * channels);
-    //DEBUG: try output device
-    outWaveform->SetAudioInfo(
-        sther->outInfo->defaultSampleRate, 
-        sther->outInfo->maxOutputChannels, 
-        sther->outFrame, 
-        defBlockSize * sther->outInfo->maxOutputChannels);
+        // set audio information to GUI plot, given inFrame must afterward sther->SetInputStream for buffer initialization
+        inWaveform->SetAudioInfo(sampleRate, channels, sther->inFrame, defBlockSize * channels);
+        outWaveform->SetAudioInfo(
+            sther->outInfo->defaultSampleRate,
+            sther->outInfo->maxOutputChannels,
+            sther->outFrame,
+            defBlockSize * sther->outInfo->maxOutputChannels);
+    }
 
     if (param.pitchshift != 0.0) {
         param.frequencyshift *= pow(2.0, param.pitchshift / 12.0);
@@ -349,37 +407,9 @@ int main(int argc, char **argv)
         sther->Create(sampleRate, channels, param.timeratio, param.frequencyshift);
         
         /* DEBUG: playground with channel data */
-        auto ptr_of_shared_ptr = sther->GetChannelData();
-        auto formantFFTSize = sther->GetFormantFFTSize();
-        auto scaleSizes = sther->GetChannelScaleSizes(0);
-        std::cout << "got channel data: formant fft size:" << formantFFTSize << " scale size count:" << scaleSizes << std::endl;
-        int bufSize = 0;
-        double* dataPtr = nullptr;
-        // using scale plot chart drawing formant data
-        sther->GetFormantData(PitchShifting::Stretcher::FormantDataType::Cepstra, 0, &formantFFTSize, &dataPtr, &bufSize);
-        formantChart->SetPlotInfo("Ceps", 1, 0, formantFFTSize, dataPtr, bufSize);
-        sther->GetFormantData(PitchShifting::Stretcher::FormantDataType::Envelope, 0, &formantFFTSize, &dataPtr, &bufSize);
-        formantChart->SetPlotInfo("Envelop", 2, 0, formantFFTSize, dataPtr, bufSize);
-        sther->GetFormantData(PitchShifting::Stretcher::FormantDataType::Spare, 0, &formantFFTSize, &dataPtr, &bufSize);
-        formantChart->SetPlotInfo("Spare", 3, 0, formantFFTSize, dataPtr, bufSize);
-        int fftSize = formantFFTSize; // scale data just using formant fft size 2048
-        //int fftSize = pow(2, (i + 10)); // 1024, 2048, 4096
-        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Real, 0, fftSize, &dataPtr, &bufSize); /* resolution 100 */
-        scaleChart->SetPlotInfo("Real", 1, 0, fftSize, dataPtr, bufSize);
-        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Imaginary, 0, fftSize, &dataPtr, &bufSize);
-        scaleChart->SetPlotInfo("Imag", 2, 0, fftSize, dataPtr, bufSize);
-        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Magnitude, 0, fftSize, &dataPtr, &bufSize); /* resolution 0.1 */
-        scaleChart->SetPlotInfo("Mag", 3, 0, fftSize, dataPtr, bufSize);
-        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PreviousMagnitude, 0, fftSize, &dataPtr, &bufSize);
-        scaleChart->SetPlotInfo("PrevMag", 6, 0, fftSize, dataPtr, bufSize);
-        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Phase, 0, fftSize, &dataPtr, &bufSize); /* resolution pi */
-        scaleChart->SetPlotInfo("Phase", 4, 0, fftSize, dataPtr, bufSize);
-        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::AdvancedPhase, 0, fftSize, &dataPtr, &bufSize);
-        scaleChart->SetPlotInfo("AdPhase", 5, 0, fftSize, dataPtr, bufSize);
-        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PendingKick, 0, fftSize, &dataPtr, &bufSize); /* so far zero values */
-        scaleChart->SetPlotInfo("Kick", 7, 0, fftSize, dataPtr, bufSize);
-        sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Accumulator, 0, fftSize, &dataPtr, &bufSize); /* resolution 0.1 */
-        scaleChart->SetPlotInfo("Accu", 8, 0, fftSize, dataPtr, bufSize);
+        if (param.gui) {
+            mapDataPtrToGuiPlot(sther);
+        }
         
         if (inSource == SourceType::AudioFile) {
             sther->ExpectedInputDuration(inputFrames); // estimate from input file
@@ -452,6 +482,11 @@ int main(int argc, char **argv)
                 cerr << "=== Cancel reading inputs ===" << endl;
                 reading = false;
                 successful = true;
+            }
+            //DEBUG: check GUI window state if destroyed to interrupt processing
+            if (param.gui && uiWindowState == FnWindowStates::DESTROYED) {
+                cerr << "=== GUI was destroyed to leave ===" << endl;
+                reading = false;
             }
         } // while (reading)
 

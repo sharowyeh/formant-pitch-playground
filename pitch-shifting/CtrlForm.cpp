@@ -21,33 +21,43 @@ GLUI::CtrlForm::~CtrlForm()
 vector<SourceDesc> inSrcList;
 int inSrcIndex = -1;
 SourceDesc inSrcItem;
-//TODO: considering given default selection is index of the LIST OR DEVICE?
-void GLUI::CtrlForm::SetInputSourceList(vector<SourceDesc> devices, int defaultSelection)
-{
-	inSrcList = devices;
-	
-	if (defaultSelection >= devices.size())
-		inSrcIndex = devices.size() > 0 ? 0 : -1;
-	else
-		inSrcIndex = defaultSelection;
-	if (defaultSelection >= 0)
-		inSrcItem = devices[defaultSelection];
-}
 
 vector<SourceDesc> outSrcList;
 int outSrcIndex = -1;
 SourceDesc outSrcItem;
 
-void GLUI::CtrlForm::SetOutputSourceList(vector<SourceDesc> devices, int defaultSelection)
+void GLUI::CtrlForm::SetAudioDeviceList(std::vector<PitchShifting::SourceDesc>& devices, int defInDevIndex, int defOutDevIndex)
 {
-	outSrcList = devices;
+	// use copy if selecting items to another vector
+	std::copy_if(devices.begin(), devices.end(), std::back_inserter(inSrcList), [](SourceDesc& item) {
+		return item.inputChannels > 0;
+		});
+	// set selection to selected list
+	auto selin = std::find_if(inSrcList.begin(), inSrcList.end(), [&defInDevIndex](SourceDesc& item) {
+		return item.index == defInDevIndex;
+		});
+	if (selin != inSrcList.end()) {
+		inSrcIndex = std::distance(inSrcList.begin(), selin);
+		inSrcItem = *selin;
+	}
+	else {
+		inSrcIndex = -1;
+	}
 
-	if (defaultSelection >= devices.size())
-		outSrcIndex = devices.size() > 0 ? 0 : -1;
-	else
-		outSrcIndex = defaultSelection;
-	if (defaultSelection >= 0)
-		outSrcItem = devices[defaultSelection];
+	std::copy_if(devices.begin(), devices.end(), std::back_inserter(outSrcList), [](SourceDesc& item) {
+		return item.outputChannels > 0;
+		});
+
+	auto selout = std::find_if(outSrcList.begin(), outSrcList.end(), [&defOutDevIndex](SourceDesc& item) {
+		return item.index == defOutDevIndex;
+		});
+	if (selout != outSrcList.end()) {
+		outSrcIndex = std::distance(outSrcList.begin(), selout);
+		outSrcItem = *selout;
+	}
+	else {
+		outSrcIndex = -1;
+	}
 }
 
 bool world_check = false;

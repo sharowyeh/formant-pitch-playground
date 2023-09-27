@@ -83,6 +83,7 @@ int Parameters::ParseOptions(int c, char** v)
             { "fine",          0, 0, '3' },
             { "list-device",   0, 0, 'l' },
             { "input-gain",    1, 0, 'g' },
+            { "gui",           0, 0, 'U' },
             { 0, 0, 0, 0 }
         };
 
@@ -133,6 +134,7 @@ int Parameters::ParseOptions(int c, char** v)
         case '3': finer = true; break;
         case 'l': listdev = true; break;
         case 'g': inputgaindb = atof(optarg); break;
+        case 'U': gui = true; break;
         default:  help = true; break;
         }
     }

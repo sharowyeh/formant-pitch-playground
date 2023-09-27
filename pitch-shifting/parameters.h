@@ -6,6 +6,7 @@ namespace PitchShifting {
 
 class Parameters {
 public:
+    bool gui = false;
     // estimate frame ratio from input sound for output, default 1.0
     double timeratio = 1.0;
     // estimate output sound file duration, default unset(0.0)
