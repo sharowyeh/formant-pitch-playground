@@ -70,12 +70,15 @@ GLUI::ScalePlot* scaleChart = nullptr;
 std::thread* uiThread = nullptr;
 /* design states for main thread communication, refer to FnWindowStates */
 std::atomic<int> uiWindowState = 0;
-/* design button starting flag when gui accquire stretcher processing */
-std::atomic<bool> uiStartEnabled = false;
+/* design button flag when gui accquire audio source changes */
+std::atomic<bool> uiSetAudioSource = false;
+/* design button flag when gui accquire stretcher processing */
+std::atomic<bool> uiStartStretcher = false;
 /* for window life cycle */
 typedef void (*fnWindowStateChanged)(int);
 /* for ctrl form button action */
-typedef void (*fnButtonClicked)(std::string, int);
+typedef void (*fnButtonClicked)(void*, GLUI::ButtonEventArgs);
+
 enum FnWindowStates :int {
     NONE,
     INITIALIZED, // ready to frame rendering
@@ -158,9 +161,16 @@ void onWindowStateChanged(int state) {
     cerr << "Window state: " << state << endl;
 }
 
-void onButtonClicked(std::string name, int param) {
-    cerr << "Button: " << name.c_str() << " param: " << param << endl;
-    uiStartEnabled = (param == 1) ? true: false;
+void onButtonClicked(void* inst, GLUI::ButtonEventArgs param) {
+    auto id = std::get<0>(param.data);
+    auto p1 = std::get<1>(param.data);
+    cerr << "Button: " << id.c_str() << " param: " << p1 << endl;
+    if (id == "setaudiosource") {
+        uiSetAudioSource = true;
+    }
+    else {
+        uiStartStretcher = true;
+    }
 }
 
 void setGLWindow(PitchShifting::Parameters* param)
@@ -173,7 +183,8 @@ void setGLWindow(PitchShifting::Parameters* param)
     uiCallbackFnMap[ON_BUTTON_CLICKED] = &onButtonClicked;
     // UI thread reporting GUI states
     uiWindowState = NONE;
-    uiStartEnabled = false;
+    uiSetAudioSource = false;
+    uiStartStretcher = false;
     auto bound = std::bind(uiThreadRun, uiCallbackFnMap, param);
     uiThread = new std::thread(bound);
     //DEBUG: it still better join the thread to fully control gui life cycle
@@ -235,22 +246,13 @@ int main(int argc, char **argv)
     bool pitchToFreq = param.freqMapFile.empty();
     sther->LoadFreqMap((pitchToFreq ? param.pitchMapFile : param.freqMapFile), pitchToFreq);
 
-    SourceType inSource = SourceType::Unknown;
-    SourceType outSource = SourceType::Unknown;
-    std::string extIn, extOut;
-    for (int i = strlen(param.inAudioParam); i > 0; ) {
-        if (param.inAudioParam[--i] == '.') {
-            extIn = param.inAudioParam + i + 1;
-            inSource = SourceType::AudioFile;
-            break;
-        }
-    }
-    for (int i = strlen(param.outAudioParam); i > 0; ) {
-        if (param.outAudioParam[--i] == '.') {
-            extOut = param.outAudioParam + i + 1;
-            outSource = SourceType::AudioFile;
-            break;
-        }
+    // so far use audio device frequently than files
+    std::vector<SourceDesc> devices;
+    int devCount = sther->ListAudioDevices(devices);
+    // list audio device only
+    if (param.listdev) {
+        delete sther;
+        return 0;
     }
 
     int sampleRate = 0;
@@ -260,10 +262,10 @@ int main(int argc, char **argv)
 
     // check input/output audio file or device
     bool checkAudio = true;
-    if (inSource) {
+    if (param.inAudioType == SourceType::AudioFile) {
         checkAudio = sther->LoadInputFile(param.inAudioParam, &sampleRate, &channels, &format, &inputFrames, param.timeratio, param.duration);
     }
-    if (outSource) {
+    if (param.outAudioType == SourceType::AudioFile) {
         checkAudio &= sther->SetOutputFile(param.outAudioParam, sampleRate, 2, format);
     }
     if (checkAudio == false) {
@@ -272,40 +274,16 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    std::vector<SourceDesc> devices;
-    int devCount = sther->ListAudioDevices(devices);
-    // list audio device only
-    if (param.listdev) {
-        delete sther;
-        return 0;
+    if (param.inAudioType == SourceType::AudioDevice) {
+        checkAudio = sther->SetInputStream(param.inDeviceIdx, &sampleRate, &channels);
     }
-
-    // 0/2: mymacin48k, 9: mywinin44k(mme), 43: mywinin48k
-    int inDevIndex = 43;
-    // 1: mymacout48k, 15: mywinout44k(mme), 26/28/34: mywinout48k(wdm/aux/vcable)
-    int outDevIndex = 26;
-    if (checkNumuric(param.inAudioParam, &inDevIndex)) {
-        checkAudio = sther->SetInputStream(inDevIndex, &sampleRate, &channels);
-        if (checkAudio) {
-            inSource = SourceType::AudioDevice;
-        }
-        else {
-            inDevIndex = -1;
-        }
-    }
-    if (checkNumuric(param.outAudioParam, &outDevIndex)) {
-        checkAudio &= sther->SetOutputStream(outDevIndex);
-        if (checkAudio) {
-            outSource = SourceType::AudioDevice;
-        }
-        else {
-            outDevIndex = -1;
-        }
+    if (param.outAudioType == SourceType::AudioDevice) {
+        checkAudio &= sther->SetOutputStream(param.outDeviceIdx);
     }
 
     if (param.gui) {
         // append list to control form, and defualt selection from cli options
-        ctrlForm->SetAudioDeviceList(devices, inDevIndex, outDevIndex);
+        ctrlForm->SetAudioDeviceList(devices, param.inDeviceIdx, param.outDeviceIdx);
     }
     
     if (checkAudio == false) {
@@ -317,7 +295,7 @@ int main(int argc, char **argv)
         }
         else {
             // wait button event(from button clicked callback) after audio device selection in gui mode
-            while (uiStartEnabled == false) {
+            while (uiSetAudioSource == false) {
                 Sleep(100);
                 if (uiWindowState == FnWindowStates::DESTROYED) {
                     cerr << "CLI given in/out source failed and GUI closed" << endl;
@@ -325,12 +303,18 @@ int main(int argc, char **argv)
                     return 1;
                 }
             }
-            //TODO: get selection and re-check audio device can be opened
+            //TODO: need to add check user changed index, so far just leave the process
+            auto inIndex = -1;
+            auto outIndex = -1;
+            ctrlForm->GetAudioSources(&inIndex, &outIndex);
+            cerr << "Got audio sources: " << inIndex << ", " << outIndex << " so far leave the process!" << endl;
+            delete sther;
+            return 1;
         }
     }
 
     // if use capture device as input, given duration or infinity -1?
-    if (inSource == SourceType::AudioDevice) {
+    if (param.inAudioType == SourceType::AudioDevice) {
         inputFrames = (int)INFINITE;//sampleRate * 3600 * 3; // 3hr for long duration test 
     }
 
@@ -411,7 +395,7 @@ int main(int argc, char **argv)
             mapDataPtrToGuiPlot(sther);
         }
         
-        if (inSource == SourceType::AudioFile) {
+        if (param.inAudioType == SourceType::AudioFile) {
             sther->ExpectedInputDuration(inputFrames); // estimate from input file
         }
         sther->MaxProcessSize(defBlockSize);
@@ -461,7 +445,7 @@ int main(int argc, char **argv)
             }
 
             // show process percentage if input source is audio file(estimatable duration)
-            if (inSource == SourceType::AudioFile) {
+            if (param.inAudioType == SourceType::AudioFile) {
                 int p = int((double(frame) * 100.0) / inputFrames);
                 if (p > percent || frame == 0) {
                     percent = p;
@@ -511,14 +495,12 @@ int main(int argc, char **argv)
 
     } // while (successful)
 
-    sther->CloseFiles();
+    sther->CloseInputFile();
+    sther->CloseOutputFile();
 
     //sther->WaitStream(); // DEBUG: no need to wait stream for callback, use main loop instead
     sther->StopInputStream();
     sther->StopOutputStream();
-
-    free(param.inAudioParam);
-    free(param.outAudioParam);
 
     if (!param.quiet) {
 

@@ -52,18 +52,36 @@ public:
     std::string myName;
     bool isR3;
 
-    char* inAudioParam;
-    char* outAudioParam;
+    char* inAudioParam = nullptr;
+    char* outAudioParam = nullptr;
+    std::string inFileExt;
+    std::string outFileExt;
+    int inAudioType = 0;/*0=unknown, 1=file, 2=device, refer to PitchShifting::SourceType*/
+    int outAudioType = 0;
+    int inDeviceIdx = -1;/*integer type of inAudioParam if CLI given port audio device index*/
+    int outDeviceIdx = -1;
 
-    int typewin = 0/*0=OptionWindowStandard*/;
+    int typewin = 0;/*0=OptionWindowStandard*/
 
     Parameters(int c = 0, char** v = nullptr);
     /* 
      * given CLI arguments will overwrite arg from constructure
-     * \return 1=failure, -1=pass(continue), 0=pass(leave process)
+     * \return -1=pass(continue), 0=pass(leave process), 1=failure(invalid options), 2=failure(insufficient arguments)
      */
     int ParseOptions(int c = 0, char** v = nullptr);
 
+    /*
+     * resolve input/output arguments for file name or device index
+     * from in/outAudioParam to in/outAudioType, in/outFileExt (if files) and in/outAudioNum (if device indexes)
+     * \return 0
+     */
+    int ResolveArguments();
+
+    virtual ~Parameters() {
+        // release from strdup/malloc in ParseOptions()
+        if (inAudioParam) free(inAudioParam);
+        if (outAudioParam) free(outAudioParam);
+    }
 private:
     int argc;
     char** argv;

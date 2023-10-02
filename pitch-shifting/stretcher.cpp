@@ -438,10 +438,7 @@ Stretcher::LoadInputFile(std::string fileName,
     *pFormat = 0;
     *pFramesCount = 0;
 
-    if (sndfileIn) {
-        sf_close(sndfileIn);
-        sndfileIn = nullptr;
-    }
+    CloseInputFile();
     memset(&sfinfoIn, 0, sizeof(SF_INFO));
     
     sndfileIn = sf_open(fileName.c_str(), SFM_READ, &sfinfoIn);
@@ -483,10 +480,7 @@ bool
 Stretcher::SetOutputFile(std::string fileName,
     int sampleRate, int channels, int format) {
 
-    if (sndfileOut) {
-        sf_close(sndfileOut);
-        sndfileOut = nullptr;
-    }
+    CloseOutputFile();
     memset(&sfinfoOut, 0, sizeof(SF_INFO));
     
     // TODO: the input sample rate also affact rubberband stretcher,
@@ -995,11 +989,15 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
 }
 
 void
-Stretcher::CloseFiles() {
+Stretcher::CloseInputFile() {
     if (sndfileIn) {
         sf_close(sndfileIn);
         sndfileIn = nullptr;
     }
+}
+
+void
+Stretcher::CloseOutputFile() {
     if (sndfileOut) {
         sf_close(sndfileOut);
         sndfileOut = nullptr;

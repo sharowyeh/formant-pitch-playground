@@ -124,7 +124,8 @@ public:
     bool RetrieveAvailableData(size_t *pCountOut, bool isfinal = false);
 
     // helper function if using input/output sndfiles
-    void CloseFiles();
+    void CloseInputFile();
+    void CloseOutputFile();
 
     // list audio devices via portaudio
     int ListAudioDevices(std::vector<SourceDesc>& devices);

@@ -180,6 +180,9 @@ int Parameters::ParseOptions(int c, char** v)
         argc++;
     }
 
+    // resolve arguments
+    ResolveArguments();
+
     // given parameters must contain input and output wav files
     if (help || fullHelp || !haveRatio || optind + 2 != argc) {
         print_usage(fullHelp, isR3, myName);
@@ -237,6 +240,36 @@ int Parameters::ParseOptions(int c, char** v)
     }
     // because return code 0~2 represent leave process 
     return -1;
+}
+
+int Parameters::ResolveArguments()
+{
+    if (checkNumuric(inAudioParam, &inDeviceIdx)) {
+        inAudioType = 2;// SourceType::AudioDevice
+    }
+    else {
+        // original rubberband sample separate file extension code block...
+        for (int i = strlen(inAudioParam); i > 0; ) {
+            if (inAudioParam[--i] == '.') {
+                inFileExt = inAudioParam + i + 1;
+                inAudioType = 1;// SourceType::AudioFile
+                break;
+            }
+        }
+    }
+    if (checkNumuric(outAudioParam, &outDeviceIdx)) {
+        outAudioType = 2;// SourceType::AudioDevice
+    }
+    else {
+        for (int i = strlen(outAudioParam); i > 0; ) {
+            if (outAudioParam[--i] == '.') {
+                outFileExt = outAudioParam + i + 1;
+                outAudioType = 1;// SourceType::AudioFile;
+                break;
+            }
+        }
+    }
+    return 0;
 }
 
 }

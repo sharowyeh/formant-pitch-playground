@@ -42,6 +42,7 @@ void GLUI::CtrlForm::SetAudioDeviceList(std::vector<PitchShifting::SourceDesc>& 
 	}
 	else {
 		inSrcIndex = -1;
+		inSrcItem = SourceDesc();
 	}
 
 	std::copy_if(devices.begin(), devices.end(), std::back_inserter(outSrcList), [](SourceDesc& item) {
@@ -57,7 +58,14 @@ void GLUI::CtrlForm::SetAudioDeviceList(std::vector<PitchShifting::SourceDesc>& 
 	}
 	else {
 		outSrcIndex = -1;
+		outSrcItem = SourceDesc();
 	}
+}
+
+void GLUI::CtrlForm::GetAudioSources(int* inDevIndex, int* outDevIndex)
+{
+	if (inDevIndex) *inDevIndex = inSrcItem.index;
+	if (outDevIndex) *outDevIndex = outSrcItem.index;
 }
 
 bool world_check = false;
@@ -99,14 +107,18 @@ void GLUI::CtrlForm::Render()
 		ImGui::EndCombo();
 	}
 
-	if (ImGui::Button("hello")) {
-		if (OnButtonClicked) {
-			OnButtonClicked(string("hello"), 1);
+	if (ImGui::Button("Set Audio Source")) {
+		int confirmSource = false;
+		if (inSrcItem.index > -1 && outSrcItem.index > -1) {
+			confirmSource = true;
+			if (OnButtonClicked) {
+				OnButtonClicked(this, ButtonEventArgs("setaudiosource", 0));
+			}
 		}
 	}
 	ImGui::SameLine();
-	ImGui::Text("%d", inSrcIndex);
-	ImGui::SameLine();
+	ImGui::Text("in: %d, out: %d", inSrcItem.index, outSrcItem.index);
+
 	if (ImGui::Checkbox("world", &world_check)) {
 
 	}
