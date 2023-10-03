@@ -35,6 +35,9 @@ public:
 	/* get device index of current selected audio source */
 	void GetAudioSources(int* inDevIndex, int* outDevIndex);
 
+	void SetAudioFileList(std::vector<PitchShifting::SourceDesc>& files, char* defInFile = nullptr, char* defOutFile = nullptr);
+	void GetAudioFiles(char* inFile, char* outFile);
+
 	void Render();
 private:
 	GLFWwindow* parentWindow;

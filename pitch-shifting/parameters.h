@@ -54,6 +54,8 @@ public:
 
     char* inAudioParam = nullptr;
     char* outAudioParam = nullptr;
+    std::string inFilePath;
+    std::string outFilePath;
     std::string inFileExt;
     std::string outFileExt;
     int inAudioType = 0;/*0=unknown, 1=file, 2=device, refer to PitchShifting::SourceType*/

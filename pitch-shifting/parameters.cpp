@@ -252,6 +252,7 @@ int Parameters::ResolveArguments()
         for (int i = strlen(inAudioParam); i > 0; ) {
             if (inAudioParam[--i] == '.') {
                 inFileExt = inAudioParam + i + 1;
+                inFilePath = std::string(inAudioParam);
                 inAudioType = 1;// SourceType::AudioFile
                 break;
             }
@@ -264,6 +265,7 @@ int Parameters::ResolveArguments()
         for (int i = strlen(outAudioParam); i > 0; ) {
             if (outAudioParam[--i] == '.') {
                 outFileExt = outAudioParam + i + 1;
+                outFilePath = std::string(outAudioParam);
                 outAudioType = 1;// SourceType::AudioFile;
                 break;
             }

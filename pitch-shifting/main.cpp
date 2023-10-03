@@ -71,7 +71,8 @@ std::thread* uiThread = nullptr;
 /* design states for main thread communication, refer to FnWindowStates */
 std::atomic<int> uiWindowState = 0;
 /* design button flag when gui accquire audio source changes */
-std::atomic<bool> uiSetAudioSource = false;
+std::atomic<int> uiSetAudioButton = 0;
+std::atomic<int> uiSetAudioSource = false;
 /* design button flag when gui accquire stretcher processing */
 std::atomic<bool> uiStartStretcher = false;
 /* for window life cycle */
@@ -165,12 +166,25 @@ void onButtonClicked(void* inst, GLUI::ButtonEventArgs param) {
     auto id = std::get<0>(param.data);
     auto p1 = std::get<1>(param.data);
     cerr << "Button: " << id.c_str() << " param: " << p1 << endl;
-    if (id == "setaudiosource") {
+    if (id == "setinputdevice") {
+        uiSetAudioButton = 1;
+    }
+    else if (id == "setoutputdevice") {
+        uiSetAudioButton = 2;
+    }
+    else if (id == "setinputfile") {
+        uiSetAudioButton = 3;
+    }
+    else {
+        uiSetAudioButton = 0;
+    }
+    uiSetAudioSource = p1;
+    /*if (id == "setaudiosource") {
         uiSetAudioSource = true;
     }
     else {
         uiStartStretcher = true;
-    }
+    }*/
 }
 
 void setGLWindow(PitchShifting::Parameters* param)
@@ -231,7 +245,7 @@ bool setAudioSource(PitchShifting::Parameters& param, PitchShifting::Stretcher* 
     bool result = false;
     switch (param.inAudioType) {
     case SourceType::AudioFile:
-        result = sther->LoadInputFile(param.inAudioParam, &sampleRate, &channels, &format, &inputFrames, param.timeratio, param.duration);
+        result = sther->LoadInputFile(param.inFilePath, &sampleRate, &channels, &format, &inputFrames, param.timeratio, param.duration);
         if (param.debug > 2) {
             cerr << "DEBUG: load audio file format: " << format << ", ext format: " << sther->GetFileFormat(param.inFileExt) << endl;
         }
@@ -252,7 +266,7 @@ bool setAudioSource(PitchShifting::Parameters& param, PitchShifting::Stretcher* 
         // manually assign audio format incase the output is file
         format = sther->GetFileFormat(param.outFileExt);
         if (format == 0) format = 65538;
-        result = sther->SetOutputFile(param.outAudioParam, sampleRate, 2, format);
+        result = sther->SetOutputFile(param.outFilePath, sampleRate, 2, format);
         break;
     case SourceType::AudioDevice:
         result = sther->SetOutputStream(param.outDeviceIdx);
@@ -297,6 +311,11 @@ int main(int argc, char **argv)
         return 0;
     }
 
+    // only for gui combobox presents items
+    std::vector<SourceDesc> files;
+    int fileCount = sther->ListLocalFiles(files);
+    cerr << "Local audio files: " << fileCount << endl;
+
     int sampleRate = 0;
     int channels = 0;
     int format = 0;
@@ -308,35 +327,55 @@ int main(int argc, char **argv)
     if (param.gui) {
         // append list to control form, and defualt selection from cli options
         ctrlForm->SetAudioDeviceList(devices, param.inDeviceIdx, param.outDeviceIdx);
+        ctrlForm->SetAudioFileList(files, 
+            (param.inAudioType == SourceType::AudioFile ? param.inAudioParam : nullptr),
+            (param.outAudioType == SourceType::AudioFile ? param.outAudioParam : nullptr));
     }
     
-    if (checkAudio == false) {
-        if (param.gui == false) {
+    if (checkAudio == false && param.gui == false) {
         // leave app if no available audio sources in console mode
-            cerr << "Set input/output audio device failed" << endl;
-            delete sther;
-            return 1;
-        }
-        else {
-            // wait button event(from button clicked callback) after audio device selection in gui mode
-            while (checkAudio == false) {
-                Sleep(500);
-                if (uiWindowState == FnWindowStates::DESTROYED) {
-                    cerr << "CLI given in/out source failed and GUI closed" << endl;
-                    delete sther;
-                    return 1;
-                }
-                // TODO: add retry to force leaving while loop
-                if (uiSetAudioSource == true) {
-                    uiSetAudioSource = false;
-                    // so far only support audio device selection
-                    ctrlForm->GetAudioSources(&param.inDeviceIdx, &param.outDeviceIdx);
-                    cerr << "Got audio sources: " << param.inDeviceIdx << ", " << param.outDeviceIdx;
-                    cerr << " than open stream to ensure the availability" << endl;
-                    checkAudio = setAudioSource(param, sther, sampleRate, channels, format, inputFrames);
-                }
+        cerr << "Set input/output audio device failed" << endl;
+        delete sther;
+        return 1;
+    }
+    // in GUI mode, block process until user confirm the default input/output source selection
+    if (param.gui) {
+        checkAudio = false; // force to user confirm the selection
+        // wait button event(from button clicked callback) after audio device selection in gui mode
+        while (checkAudio == false) {
+            Sleep(500);
+            if (uiWindowState == FnWindowStates::DESTROYED) {
+                cerr << "CLI given in/out source failed and GUI closed" << endl;
+                delete sther;
+                return 1;
             }
-
+            // TODO: add retry to force leaving while loop
+            if (uiSetAudioButton > 0) {
+                if (uiSetAudioButton == 1) {
+                    sther->CloseInputFile();
+                    param.inAudioType = SourceType::AudioDevice;
+                    param.inDeviceIdx = uiSetAudioSource;
+                }
+                if (uiSetAudioButton == 2) {
+                    sther->CloseOutputFile();
+                    param.outAudioType = SourceType::AudioDevice;
+                    param.outDeviceIdx = uiSetAudioSource;
+                }
+                if (uiSetAudioButton == 3) {
+                    sther->CloseInputStream();
+                    param.inAudioType = SourceType::AudioFile;
+                    param.inFilePath = files[uiSetAudioSource].desc;
+                }
+                checkAudio = setAudioSource(param, sther, sampleRate, channels, format, inputFrames);
+            }
+            //if (uiSetAudioSource == true) {
+            //    uiSetAudioSource = false;
+            //    // so far only support audio device selection
+            //    ctrlForm->GetAudioSources(&param.inDeviceIdx, &param.outDeviceIdx);
+            //    cerr << "Got audio sources: " << param.inDeviceIdx << ", " << param.outDeviceIdx;
+            //    cerr << " than open stream to ensure the availability" << endl;
+            //    checkAudio = setAudioSource(param, sther, sampleRate, channels, format, inputFrames);
+            //}
         }
     }
 

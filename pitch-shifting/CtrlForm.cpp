@@ -68,6 +68,36 @@ void GLUI::CtrlForm::GetAudioSources(int* inDevIndex, int* outDevIndex)
 	if (outDevIndex) *outDevIndex = outSrcItem.index;
 }
 
+vector<SourceDesc> inFileList;
+int inFileIndex = -1;
+SourceDesc inFileItem;
+vector<SourceDesc> outFileList;
+int outFileIndex = -1;
+SourceDesc outFileItem;
+
+void GLUI::CtrlForm::SetAudioFileList(std::vector<PitchShifting::SourceDesc>& files, char* defInFile, char* defOutFile)
+{
+	inFileList = files;
+	if (defInFile) {
+		auto found = std::find_if(inFileList.begin(), inFileList.end(), [&defInFile](SourceDesc& item) {
+			return item.desc == defInFile;
+			});
+		if (found != inFileList.end()) {
+			inFileIndex = std::distance(inFileList.begin(), found);
+			inFileItem = *found;
+		}
+		else {
+			inFileIndex = -1;
+			inFileItem = SourceDesc();
+		}
+	}
+}
+
+void GLUI::CtrlForm::GetAudioFiles(char* inFile, char* outFile)
+{
+
+}
+
 bool world_check = false;
 
 // not work
@@ -81,6 +111,15 @@ void GLUI::CtrlForm::Render()
 	//ImGui::GetStyle().WindowRounding = 4.f; // change style to the next control
 	ImGui::Begin(ctrlFormName, NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
 
+	if (ImGui::Button("Set##inputdevice")) {
+		if (inSrcItem.index > -1) {
+			//TODO: reset input file if set before
+			if (OnButtonClicked) {
+				OnButtonClicked(this, ButtonEventArgs("setinputdevice", inSrcItem.index));
+			}
+		}
+	}
+	ImGui::SameLine();
 	if (ImGui::BeginCombo("Input Source", (!inSrcItem ? nullptr : inSrcItem.desc.c_str()))) {
 		for (int i = 0; i < inSrcList.size(); i++) {
 			const bool isSelected = (inSrcIndex == i);
@@ -94,6 +133,15 @@ void GLUI::CtrlForm::Render()
 		ImGui::EndCombo();
 	}
 
+	if (ImGui::Button("Set##outputdevice")) {
+		if (outSrcItem.index > -1) {
+			//TODO: reset output file if set before
+			if (OnButtonClicked) {
+				OnButtonClicked(this, ButtonEventArgs("setoutputdevice", outSrcItem.index));
+			}
+		}
+	}
+	ImGui::SameLine();
 	if (ImGui::BeginCombo("Output Source", (!outSrcItem ? nullptr : outSrcItem.desc.c_str()))) {
 		for (int i = 0; i < outSrcList.size(); i++) {
 			const bool isSelected = (outSrcIndex == i);
@@ -102,6 +150,27 @@ void GLUI::CtrlForm::Render()
 				outSrcItem = outSrcList[i];
 			}
 
+			if (isSelected) ImGui::SetItemDefaultFocus();
+		}
+		ImGui::EndCombo();
+	}
+
+	if (ImGui::Button("Set##inputfile")) {
+		if (inFileItem.desc.empty() == false) {
+			//TODO: should find a way passing string to caller, so far just like audio devices sending index
+			if (OnButtonClicked) {
+				OnButtonClicked(this, ButtonEventArgs("setinputfile", inFileItem.index));
+			}
+		}
+	}
+	ImGui::SameLine();
+	if (ImGui::BeginCombo("Input File", (!inFileItem ? nullptr : inFileItem.desc.c_str()))) {
+		for (int i = 0; i < inFileList.size(); i++) {
+			const bool isSelected = (inFileIndex == i);
+			if (ImGui::Selectable(inFileList[i].desc.c_str(), inFileIndex)) {
+				inFileIndex = i;
+				inFileItem = inFileList[i];
+			}
 			if (isSelected) ImGui::SetItemDefaultFocus();
 		}
 		ImGui::EndCombo();

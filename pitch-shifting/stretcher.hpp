@@ -84,6 +84,8 @@ public:
 
     // helper function to get SF_FORMAT_XXXX from file extension, \return 0 if not found
     int GetFileFormat(std::string extName);
+    // list the local audio files to a list
+    int ListLocalFiles(std::vector<SourceDesc>& files);
     // load input before create stretcher for time ratio and frames duration given to rubberband
     bool LoadInputFile(std::string fileName,
         int *pSampleRate, int *pChannels, int *pFormat, int64_t *pFramesCount,
@@ -137,9 +139,11 @@ public:
     bool SetInputStream(int index, int *pSampleRate = nullptr, int *pChannels = nullptr);
     void StartInputStream() { if (inStream) Pa_StartStream(inStream); }
     void StopInputStream() { if (inStream) Pa_StopStream(inStream); }
+    void CloseInputStream() { if (inStream) Pa_CloseStream(inStream); }
     bool SetOutputStream(int index);
     void StartOutputStream() { if (outStream) Pa_StartStream(outStream); };
     void StopOutputStream() { if (outStream) Pa_StopStream(outStream); };
+    void CloseOutputStream() { if (outStream) Pa_CloseStream(outStream); };
     // DEBUG: original design for waiting audio stream to receive/send audio frames in portaudio callback, now use main loop instead
     void WaitStream(int timeout = 2000) { if (inStream || outStream) Pa_Sleep(timeout); };
     

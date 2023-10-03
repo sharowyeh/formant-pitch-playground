@@ -24,6 +24,10 @@ auto last = std::chrono::steady_clock::now();
 
 using std::string;
 
+// for local directory files iteration
+#include <filesystem>
+namespace fs = std::filesystem;
+
 namespace PitchShifting {
 
 Stretcher::Stretcher(Parameters* parameters, int defBlockSize, int debugLevel) {
@@ -426,6 +430,41 @@ Stretcher::GetFileFormat(std::string extName) {
                 << "\", will use same file format as input file" << endl;
     }
     return format;
+}
+
+int
+Stretcher::ListLocalFiles(std::vector<SourceDesc>& files) {
+    files.clear();
+
+    SF_INFO sfinfo;
+    int index = 0;
+    //TODO: force using working directory
+    for (const auto& entry : fs::directory_iterator(".")) {
+        // ignore none files
+        if (entry.is_regular_file() == false)
+            continue;
+        
+        memset(&sfinfo, 0, sizeof(SF_INFO));
+        
+        auto sf = sf_open(entry.path().string().c_str(), SFM_READ, &sfinfo);
+        if (!sf) continue;
+        if (sfinfo.samplerate == 0) {
+            sf_close(sf);
+            continue;
+        }
+
+        SourceDesc file;
+        file.type = SourceType::AudioFile;
+        file.index = index;
+        file.inputChannels = file.outputChannels = sfinfo.channels;
+        file.sampleRate = sfinfo.samplerate;
+        file.desc = entry.path().string();
+        files.push_back(file);
+        index++;
+        sf_close(sf);
+    }
+    
+    return files.size();
 }
 
 bool
