@@ -226,6 +226,48 @@ void mapDataPtrToGuiPlot(PitchShifting::Stretcher* sther) {
     scaleChart->SetPlotInfo("Accu", 8, 0, fftSize, dataPtr, bufSize);
 }
 
+bool setAudioSource(PitchShifting::Parameters& param, PitchShifting::Stretcher* sther,
+    int& sampleRate, int& channels, int& format, int64_t& inputFrames) {
+    bool result = false;
+    switch (param.inAudioType) {
+    case SourceType::AudioFile:
+        result = sther->LoadInputFile(param.inAudioParam, &sampleRate, &channels, &format, &inputFrames, param.timeratio, param.duration);
+        if (param.debug > 2) {
+            cerr << "DEBUG: load audio file format: " << format << ", ext format: " << sther->GetFileFormat(param.inFileExt) << endl;
+        }
+        break;
+    case SourceType::AudioDevice:
+        result = sther->SetInputStream(param.inDeviceIdx, &sampleRate, &channels);
+        break;
+    default:
+        result = false;
+        break;
+    }
+    if (result == false) {
+        cerr << "Set input source but invalid" << endl;
+    }
+
+    switch (param.outAudioType) {
+    case SourceType::AudioFile:
+        // manually assign audio format incase the output is file
+        format = sther->GetFileFormat(param.outFileExt);
+        if (format == 0) format = 65538;
+        result = sther->SetOutputFile(param.outAudioParam, sampleRate, 2, format);
+        break;
+    case SourceType::AudioDevice:
+        result = sther->SetOutputStream(param.outDeviceIdx);
+        break;
+    default:
+        result = false;
+        break;
+    }
+    if (result == false) {
+        cerr << "Set output source but invalid" << endl;
+    }
+
+    return result;
+}
+
 int main(int argc, char **argv)
 {
     PitchShifting::Parameters param;
@@ -261,25 +303,7 @@ int main(int argc, char **argv)
     int64_t inputFrames = 0;
 
     // check input/output audio file or device
-    bool checkAudio = true;
-    if (param.inAudioType == SourceType::AudioFile) {
-        checkAudio = sther->LoadInputFile(param.inAudioParam, &sampleRate, &channels, &format, &inputFrames, param.timeratio, param.duration);
-    }
-    if (param.outAudioType == SourceType::AudioFile) {
-        checkAudio &= sther->SetOutputFile(param.outAudioParam, sampleRate, 2, format);
-    }
-    if (checkAudio == false) {
-        cerr << "Set input/output to files but invalid" << endl;
-        delete sther;
-        return 1;
-    }
-
-    if (param.inAudioType == SourceType::AudioDevice) {
-        checkAudio = sther->SetInputStream(param.inDeviceIdx, &sampleRate, &channels);
-    }
-    if (param.outAudioType == SourceType::AudioDevice) {
-        checkAudio &= sther->SetOutputStream(param.outDeviceIdx);
-    }
+    bool checkAudio = setAudioSource(param, sther, sampleRate, channels, format, inputFrames);
 
     if (param.gui) {
         // append list to control form, and defualt selection from cli options
@@ -295,21 +319,24 @@ int main(int argc, char **argv)
         }
         else {
             // wait button event(from button clicked callback) after audio device selection in gui mode
-            while (uiSetAudioSource == false) {
-                Sleep(100);
+            while (checkAudio == false) {
+                Sleep(500);
                 if (uiWindowState == FnWindowStates::DESTROYED) {
                     cerr << "CLI given in/out source failed and GUI closed" << endl;
                     delete sther;
                     return 1;
                 }
+                // TODO: add retry to force leaving while loop
+                if (uiSetAudioSource == true) {
+                    uiSetAudioSource = false;
+                    // so far only support audio device selection
+                    ctrlForm->GetAudioSources(&param.inDeviceIdx, &param.outDeviceIdx);
+                    cerr << "Got audio sources: " << param.inDeviceIdx << ", " << param.outDeviceIdx;
+                    cerr << " than open stream to ensure the availability" << endl;
+                    checkAudio = setAudioSource(param, sther, sampleRate, channels, format, inputFrames);
+                }
             }
-            //TODO: need to add check user changed index, so far just leave the process
-            auto inIndex = -1;
-            auto outIndex = -1;
-            ctrlForm->GetAudioSources(&inIndex, &outIndex);
-            cerr << "Got audio sources: " << inIndex << ", " << outIndex << " so far leave the process!" << endl;
-            delete sther;
-            return 1;
+
         }
     }
 

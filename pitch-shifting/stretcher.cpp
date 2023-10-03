@@ -1127,6 +1127,12 @@ Stretcher::SetInputStream(int index, int *pSampleRate, int *pChannels) {
         cerr << "No device found at " << index << endl;
         return false;
     }
+    
+    if (inStream) {
+        Pa_CloseStream(inStream);
+        inStream = nullptr;
+    }
+    
     cerr << "IN " << index << " " << inInfo->name << " api:" << Pa_GetHostApiInfo(inInfo->hostApi)->name << " ich:" << inInfo->maxInputChannels << " och:" << inInfo->maxOutputChannels;
     cerr << " samplerate:" << inInfo->defaultSampleRate << " input delay:" << inInfo->defaultLowInputLatency << endl;
 
@@ -1171,6 +1177,12 @@ Stretcher::SetOutputStream(int index) {
         cerr << "No device found at " << index << endl;
         return false;
     }
+
+    if (outStream) {
+        Pa_CloseStream(outStream);
+        outStream = nullptr;
+    }
+
     cerr << "OUT " << index << " " << outInfo->name << " api:" << Pa_GetHostApiInfo(outInfo->hostApi)->name << " ich:" << outInfo->maxInputChannels << " och:" << outInfo->maxOutputChannels;
     cerr << " samplerate:" << outInfo->defaultSampleRate << " output delay:" << outInfo->defaultLowOutputLatency << endl;
     

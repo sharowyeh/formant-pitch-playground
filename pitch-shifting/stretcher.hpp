@@ -82,7 +82,7 @@ public:
     // clipping check during process frame
     void SetIgnoreClipping(bool ignore) { ignoreClipping = ignore; };
 
-    // helper function to get SF_FORMAT_XXXX from file extension
+    // helper function to get SF_FORMAT_XXXX from file extension, \return 0 if not found
     int GetFileFormat(std::string extName);
     // load input before create stretcher for time ratio and frames duration given to rubberband
     bool LoadInputFile(std::string fileName,
