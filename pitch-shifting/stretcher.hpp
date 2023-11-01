@@ -139,11 +139,11 @@ public:
     bool SetInputStream(int index, int *pSampleRate = nullptr, int *pChannels = nullptr);
     void StartInputStream() { if (inStream) Pa_StartStream(inStream); }
     void StopInputStream() { if (inStream) Pa_StopStream(inStream); }
-    void CloseInputStream() { if (inStream) Pa_CloseStream(inStream); }
+    void CloseInputStream() { if (inStream) Pa_CloseStream(inStream); inStream = nullptr; }
     bool SetOutputStream(int index);
     void StartOutputStream() { if (outStream) Pa_StartStream(outStream); };
     void StopOutputStream() { if (outStream) Pa_StopStream(outStream); };
-    void CloseOutputStream() { if (outStream) Pa_CloseStream(outStream); };
+    void CloseOutputStream() { if (outStream) Pa_CloseStream(outStream); outStream = nullptr; };
     // DEBUG: original design for waiting audio stream to receive/send audio frames in portaudio callback, now use main loop instead
     void WaitStream(int timeout = 2000) { if (inStream || outStream) Pa_Sleep(timeout); };
     

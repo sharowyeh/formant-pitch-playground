@@ -807,11 +807,11 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
         if ((count = sf_readf_float(sndfileIn, ibuf, blockSize)) < 0) {
             return false;
         }
-        if (sfinfoIn.channels * count > inBuffer->getWriteSpace()) {
+        /*if (sfinfoIn.channels * count > inBuffer->getWriteSpace()) {
             cerr << "input buffer is full" << endl;
         } else {
             inBuffer->write(ibuf, sfinfoIn.channels * count);
-        }
+        }*/
     }
     if (inStream) {
         std::lock_guard<std::mutex> lock(inMutex);
@@ -825,9 +825,7 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
         }
         // debug
         if (debugBuffer && time(nullptr) - debugTimestampIn >= 2) {
-        //if (debugBuffer && debugBufTimerIn != (*pCountIn / (inputSampleRate ? inputSampleRate : 48000))) {
             debugTimestampIn = time(nullptr);
-            //debugBufTimerIn = (*pCountIn / (inputSampleRate ? inputSampleRate : 48000));/*a samplerate*/
             cerr << "input buffer usage " << (int)(((float)inBuffer->getReadSpace() / inBuffer->getSize()) * 100.f) << "%" << endl;
         }
     }
@@ -982,18 +980,26 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
             }
         }
 
+        int writable = outBuffer->getWriteSpace();
+        int outBufSize = outputChannels * defBlockSize + reserveBuffer; // NOTE: same with PrepareOutputBuffer
+        // NOTE: output buffer usage is low when input process in heavy work,
+        //        correspondly, usage is high from lightweight input signals or output device rendering too slow.
+        // DEBUG: wait a latency until outStream consumed buffer before goes to next loop process incoming inputs,
+        //        this behavior IS NOT ideal if using audio device retrieves input signals realtime.
+        if (sndfileIn && writable < outBufSize / 2) {
+            // if available buffer less than 50%, wait a latency = 1000(ms) * ch * frame / sample rate
+            Sleep(1000.f * outputChannels * defBlockSize / outputSampleRate);
+        }
         {
             std::lock_guard<std::mutex> lock(outMutex);
 
-            int writable = outBuffer->getWriteSpace();
+            writable = outBuffer->getWriteSpace();
             if (outputChannels * blockSize < writable) {
                 outBuffer->write(obuf, outputChannels * blockSize);
             }
-            if (debugBuffer && time(nullptr) - debugTimestampOut >= 2) {
-            //if (debugBuffer && debugBufTimerOut != (*pCountOut / (outputSampleRate ? outputSampleRate : 48000))) {
+            if (debugBuffer && time(nullptr) - debugTimestampOut >= 2) { // print out internal n seconds
                 debugTimestampOut = time(nullptr);
-                //debugBufTimerOut = (*pCountOut / (outputSampleRate ? outputSampleRate : 48000));/*a samplerate*/
-                cerr << "output buffer usage " << (int)((1.f - (float)writable / outBuffer->getSize()) * 100.f) << "%" << endl;
+                cerr << "output buffer usage " << (int)((1.f - (float)writable / outBufSize) * 100.f) << "%" << endl;
             }
         }
 

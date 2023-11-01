@@ -144,7 +144,8 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
       - given normalized scale->mag calls fft complex to real to get cd->formant->cepstra
         - cepstram: normalize freq domain(likes dB and reduce noise), than apply ifft transform
         - eg, Mei-Frequency Cepstrum for speech recognition
-        - http://disp.ee.ntu.edu.tw/meeting/%E5%86%BC%E9%81%94/termPaper_R98942120.pdf
+        - https://www.researchgate.net/publication/2552483_Mel_Frequency_Cepstral_Coefficients_for_Music_Modeling
+        - zh: http://disp.ee.ntu.edu.tw/meeting/%E5%86%BC%E9%81%94/termPaper_R98942120.pdf
       - cepstra cutoff by sample rate / 650, and normalize by fft size
       - given cepstra data calls fft read to complex to get output formant->envelope and formant->spara
       - exp then sqrt first half of formant->envelope (bin count, = fft size/2+1)
@@ -192,10 +193,9 @@ UPDATE: using vcpkg to compiling rubberband with its dependencies in meson, DO N
   #endif
   ```
 
-I believe it would be much easier in unix-like env... 
-
-(not recommonded) download and compile manually as below:
-(add related paths to vcxproj properties and preprocessor definitions, got unresolve issues)
+(not recommonded) alternatively download and compile manually as below:
+I believe it would be much easier in unix-like env... for the further dependencies
+(manually add reference paths and preprocessor definitions to msvc vcxproj, still has unresolve issues)
 
 - fftw3
   - download precompiled dlls, use visual studio native command prompt generate .lib files
@@ -207,7 +207,7 @@ I believe it would be much easier in unix-like env...
   - build from source code, for windows -> cygwin
   - https://sleef.org/dft.xhtml
 
-- intel IPP
+- (optional) intel IPP
   - integrated in oneapi https://www.intel.com/content/www/us/en/docs/ipp/developer-guide-oneapi/2022-2/finding-intel-ipp-on-your-system.html
 
 # py version #
