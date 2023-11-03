@@ -143,7 +143,7 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
     - analyseFormant() and adjustFormant()
       - given normalized scale->mag calls fft complex to real to get cd->formant->cepstra
         - cepstram: normalize freq domain(likes dB and reduce noise), than apply ifft transform
-        - eg, Mei-Frequency Cepstrum for speech recognition
+        - eg, Mei-Frequency Cepstrum Coefficients for speech recognition
         - https://www.researchgate.net/publication/2552483_Mel_Frequency_Cepstral_Coefficients_for_Music_Modeling
         - zh: http://disp.ee.ntu.edu.tw/meeting/%E5%86%BC%E9%81%94/termPaper_R98942120.pdf
       - cepstra cutoff by sample rate / 650, and normalize by fft size

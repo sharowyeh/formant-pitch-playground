@@ -63,6 +63,9 @@ GLUI::TimeoutPopup* leavePopup = nullptr;
 GLUI::Waveform* fileWaveform = nullptr;
 GLUI::RealTimePlot* inWaveform = nullptr;
 GLUI::RealTimePlot* outWaveform = nullptr;
+// TODO: shows realtime pitch from channel scale data, get the bin(between 0 to 1025 if fftsize is 2048) which contains maximum value
+//       based on realtime plot class, the y-axis 0~1025 may need rescaling to -1 to 1
+GLUI::RealTimePlot* pitchForm = nullptr;  
 GLUI::ScalePlot* formantChart = nullptr;
 GLUI::ScalePlot* scaleChart = nullptr;
 //std::vector<GLUI::ScalePlot*> scaleCharts;
@@ -205,6 +208,7 @@ void setGLWindow(PitchShifting::Parameters* param)
     uiThread->detach();
 }
 
+/* associate data pointer between rubberband stretcher data and GUI data present source */
 void mapDataPtrToGuiPlot(PitchShifting::Stretcher* sther) {
 
     auto ptr_of_shared_ptr = sther->GetChannelData();
@@ -349,7 +353,7 @@ int main(int argc, char **argv)
                 delete sther;
                 return 1;
             }
-            // TODO: add retry to force leaving while loop
+            // TODO: partial audio source button behavior
             if (uiSetAudioButton > 0) {
                 if (uiSetAudioButton == 1) {
                     sther->CloseInputFile();

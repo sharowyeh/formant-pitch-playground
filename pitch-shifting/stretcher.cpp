@@ -807,11 +807,8 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
         if ((count = sf_readf_float(sndfileIn, ibuf, blockSize)) < 0) {
             return false;
         }
-        /*if (sfinfoIn.channels * count > inBuffer->getWriteSpace()) {
-            cerr << "input buffer is full" << endl;
-        } else {
-            inBuffer->write(ibuf, sfinfoIn.channels * count);
-        }*/
+        // copy frame data to sther->inFrame likes input audio device callback does for GUI display
+        std::copy(ibuf, ibuf + inputChannels * count, inFrame);
     }
     if (inStream) {
         std::lock_guard<std::mutex> lock(inMutex);

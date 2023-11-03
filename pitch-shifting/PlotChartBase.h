@@ -25,6 +25,8 @@ public:
 			if (offset + i >= frames) break;
 			// buffer payload just follow sndfile stride by channels
 			size_t idx = (size_t)(offset + i) * channels + ch;
+			// prevent unallocated buffer value
+			if (buf[idx] > 1.f || buf[idx] < -1.f) continue;
 			if (*maximum < buf[idx]) *maximum = buf[idx];
 			if (*minimum > buf[idx]) *minimum = buf[idx];
 		}

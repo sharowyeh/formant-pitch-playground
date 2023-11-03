@@ -10,7 +10,8 @@ GLUI::ScalePlot::ScalePlot(const char* surffix) : PlotChartBase(surffix),
 void GLUI::ScalePlot::SetPlotInfo(const char* name, int type, int ch, int fftsize, double* dataptr, int size)
 {
 	fftSize = fftsize;
-	// NOTE: if type+ch 's dataptr or size will change in runtime, ScaleData can not be map key
+	// NOTE: if type+ch 's dataptr or size will change in runtime, ScaleData can not be map key,
+	// TODO: the dataptr was from rubberband library sharing fixed vector, it is not a ideal way using it directly
 	// scale data identify by type and ch
 	auto exist = plotBuffers.find(ScaleData(nullptr, type, ch));
 	if (exist != plotBuffers.end()) {
@@ -79,12 +80,13 @@ void GLUI::ScalePlot::UpdatePlot()
 
 	auto bufSize = plotBuffers.begin()->first.bufSize;
 
-	ImGui::Text("FFT size: %d, phase size: %d", fftSize, bufSize);
+	//TODO: buf size usually is 513(1024/2+1) or 1025(2048/2+1) also lower than GUI px size, could be down resampling to increase perf
+	//TODO2: bin count(b1-b0) for magnitude/polar spectural usually is fftsize/2+1  
+	ImGui::Text("FFT size: %d, phase size: %d, bin count:%d", fftSize, bufSize, fftSize / 2 + 1);
 
 	if (ImPlot::BeginPlot(dataPlotTitle.c_str(), ImVec2(-1, 300))) {
 		ImPlot::SetupAxes("bin", "phase");
 		// increase x range for labels, real/imaginary amplitubes may need log op as db
-		//TODO: buf size usually 513(1024/2+1) or 1025(2048/2+1) also lower than GUI px size, could be down resampling to increase perf
 		ImPlot::SetupAxesLimits(0 - bufSize / 4, bufSize / 8 * 9, -IM_PI, IM_PI);
 		
 		for (auto it = plotBuffers.begin(); it != plotBuffers.end(); it++) {
