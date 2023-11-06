@@ -13,7 +13,7 @@ public:
 	PlotChartBase(const char* surf) {
 		surffix = surf;
 	}
-	/* return min and max value from frame buffer from offset during the length */
+	/* return min and max value from frame buffer begins from offset during the length */
 	void GetRangeMinMax(int offset, int length, int frames, int channels, float* buf, int ch, float* maximum, float* minimum) {
 		// out of range
 		if (offset >= frames || offset + length <= 0) {
@@ -29,6 +29,20 @@ public:
 			if (buf[idx] > 1.f || buf[idx] < -1.f) continue;
 			if (*maximum < buf[idx]) *maximum = buf[idx];
 			if (*minimum > buf[idx]) *minimum = buf[idx];
+		}
+	}
+	/* return positive maximum value from frame buffer begins from offset during the length NOTE: negative will be abs() */
+	void GetPositiveMax(int offset, int length, int frames, int channels, float* buf, int ch, float* maximum) {
+		// out of range
+		if (offset >= frames || offset + length <= 0) {
+			return;
+		}
+		for (int i = 0; i < length; i++) {
+			if (offset + i <= 0) continue;
+			if (offset + i >= frames) break;
+			size_t idx = (size_t)(offset + i) * channels + ch;
+			if (abs(buf[idx]) > 1.f) continue;
+			if (*maximum < abs(buf[idx])) *maximum = abs(buf[idx]);
 		}
 	}
 	/* let derived class can overwrite if want to change drawing window properties */

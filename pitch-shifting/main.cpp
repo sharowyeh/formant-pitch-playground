@@ -62,10 +62,7 @@ GLUI::CtrlForm* ctrlForm = nullptr;
 GLUI::TimeoutPopup* leavePopup = nullptr;
 GLUI::Waveform* fileWaveform = nullptr;
 GLUI::RealTimePlot* inWaveform = nullptr;
-GLUI::RealTimePlot* outWaveform = nullptr;
-// TODO: shows realtime pitch from channel scale data, get the bin(between 0 to 1025 if fftsize is 2048) which contains maximum value
-//       based on realtime plot class, the y-axis 0~1025 may need rescaling to -1 to 1
-GLUI::RealTimePlot* pitchForm = nullptr;  
+GLUI::RealTimePlot* outWaveform = nullptr; 
 GLUI::ScalePlot* formantChart = nullptr;
 GLUI::ScalePlot* scaleChart = nullptr;
 //std::vector<GLUI::ScalePlot*> scaleCharts;
@@ -217,6 +214,9 @@ void mapDataPtrToGuiPlot(PitchShifting::Stretcher* sther) {
     std::cout << "got channel data: formant fft size:" << formantFFTSize << " scale size count:" << scaleSizes << std::endl;
     int bufSize = 0;
     double* dataPtr = nullptr;
+    // TODO: draw pitch to realtime waveform, i guess prev mag is for input which store before change formant, or real?
+    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Real, 0, formantFFTSize, &dataPtr, &bufSize);
+    inWaveform->SetPitchInfo(dataPtr, bufSize);
     // using scale plot chart drawing formant data
     sther->GetFormantData(PitchShifting::Stretcher::FormantDataType::Cepstra, 0, &formantFFTSize, &dataPtr, &bufSize);
     formantChart->SetPlotInfo("Ceps", 1, 0, formantFFTSize, dataPtr, bufSize);

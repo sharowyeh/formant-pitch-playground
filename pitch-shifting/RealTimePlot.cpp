@@ -9,6 +9,8 @@ GLUI::RealTimePlot::RealTimePlot(const char* surffix) : PlotChartBase(surffix) {
 	realtimePlotTitle = IdenticalLabel(nullptr, "realtime");
 	realtimePlotRangeLabel = IdenticalLabel("Range");
 
+	postiveOnly = true;
+
 	audioDevice = { 0 };
 	framePtr = nullptr;
 	framePtrSize = 0;
@@ -16,6 +18,9 @@ GLUI::RealTimePlot::RealTimePlot(const char* surffix) : PlotChartBase(surffix) {
 	realtimePlotEnabled = true;
 	currentTime = 0;
 	elapsedRange = 5.f;
+
+	pitchPtr = nullptr;
+	pitchPtrSize = 0;
 }
 
 GLUI::RealTimePlot::~RealTimePlot() {
@@ -37,6 +42,12 @@ void GLUI::RealTimePlot::SetAudioInfo(int samplerate, int channels, float* ptr, 
 		audioDevice.Buffer = nullptr;
 	}
 	audioDevice.Buffer = (float*)calloc(audioDevice.Frames * audioDevice.Channels, sizeof(float));
+}
+
+void GLUI::RealTimePlot::SetPitchInfo(double* ptr, int size) {
+	pitchPtr = ptr;
+	pitchPtrSize = size;
+
 }
 
 void GLUI::RealTimePlot::Update() {
@@ -91,15 +102,35 @@ void GLUI::RealTimePlot::UpdatePlot() {
 		float negative = 0.f;
 
 		if (frames > 0) {
-			GetRangeMinMax(0, sampleCnt, frames, audioDevice.Channels, framePtr/*audioDevice.Buffer*/, ch, &positive, &negative);
+			if (postiveOnly == false) {
+				GetRangeMinMax(0, sampleCnt, frames, audioDevice.Channels, framePtr/*audioDevice.Buffer*/, ch, &positive, &negative);
+			}
+			else {
+				GetPositiveMax(0, sampleCnt, frames, audioDevice.Channels, framePtr, ch, &positive);
+			}
 		}
 		realtimeBuffer[ch].PushBack(currentTime, positive, negative);
+	}
+
+	// fill pitch data if assigned
+	if (pitchPtr && pitchPtrSize > 0) {
+		// normalize all fftSize between 0 to 1.f, find which bin has maximum value for the plot
+		float bin = 0.f;
+		float power = 0.f;
+		// TODO: we need averagely large power of a seminote range instead of which power of bin is largest
+		bin /= pitchPtrSize;
+		pitchBuffer.PushBack(currentTime, bin, power);
 	}
 
 	if (ImPlot::BeginPlot(realtimePlotTitle.c_str(), ImVec2(-1, 300))) {
 		ImPlot::SetupAxes("amp", "time");
 		ImPlot::SetupAxisLimits(ImAxis_X1, currentTime - elapsedRange, currentTime, ImGuiCond_Always);
-		ImPlot::SetupAxisLimits(ImAxis_Y1, -1, 1, ImGuiCond_Always);
+		if (postiveOnly == false) {
+			ImPlot::SetupAxisLimits(ImAxis_Y1, -1, 1, ImGuiCond_Always);
+		}
+		else {
+			ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1, ImGuiCond_Always);
+		}
 		// NOTE: apply to all shaded, or use ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.25f) to specific
 		ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
 		for (auto ch = 0; ch < audioDevice.Channels; ch++) {
@@ -128,6 +159,13 @@ void GLUI::RealTimePlot::UpdatePlot() {
 				&realtimeBuffer[ch].Amplitudes[0].x,
 				&realtimeBuffer[ch].Amplitudes[0].n,
 				realtimeBuffer[ch].Amplitudes.size(), 0, realtimeBuffer[ch].Offset, 3 * sizeof(float));
+		}
+		// draw pitch
+		if (pitchPtr && pitchPtrSize > 0) {
+			ImPlot::PlotLine("pitch", &pitchBuffer.Amplitudes[0].x, &pitchBuffer.Amplitudes[0].p,
+				pitchBuffer.Amplitudes.size(), 0, pitchBuffer.Offset, 3 * sizeof(float));
+			ImPlot::PlotLine("power(pitch)", &pitchBuffer.Amplitudes[0].x, &pitchBuffer.Amplitudes[0].n,
+				pitchBuffer.Amplitudes.size(), 0, pitchBuffer.Offset, 3 * sizeof(float));
 		}
 		ImPlot::PopStyleVar();
 		ImPlot::EndPlot();

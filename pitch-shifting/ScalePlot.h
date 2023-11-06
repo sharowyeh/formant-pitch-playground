@@ -1,6 +1,7 @@
 #pragma once
 /*
- * class naming is for scale data but just implemented with combination plot charts in waveform graph
+ * class naming is for rubberband fft scaled data presents as bin chart, which 
+ * plot data type is AmplitudeBuffer from waveform header file
  */
 #include "Waveform.h"
 #include <map>
