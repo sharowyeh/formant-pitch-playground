@@ -72,7 +72,7 @@ std::thread* uiThread = nullptr;
 std::atomic<int> uiWindowState = 0;
 /* design button flag when gui accquire audio source changes */
 std::atomic<int> uiSetAudioButton = 0;
-std::atomic<int> uiSetAudioSource = false;
+std::atomic<GLUI::CtrlFormData*> uiCtrlFormData;
 /* design button flag when gui accquire stretcher processing */
 std::atomic<bool> uiStartStretcher = false;
 /* for window life cycle */
@@ -128,10 +128,15 @@ void uiThreadRun(const std::map<int, void*>& cbFnMapRef, PitchShifting::Paramete
 
     // DEBUG: read my debug audio
     fileWaveform->LoadAudioFile("debug.wav");
-    uiWindowState = INITIALIZED;
-    if (cbFnMapRef.at(ON_WINDOW_STATE_CHANGED)) // can't use [] because it's const
-        ((fnWindowStateChanged)cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))(INITIALIZED);
+
     while (!window->PrepareFrame()) {
+        // rising UIs are ready and starting to render frame
+        if (uiWindowState == FnWindowStates::NONE) {
+            uiWindowState = INITIALIZED;
+            if (cbFnMapRef.at(ON_WINDOW_STATE_CHANGED)) // can't use [] because it's const
+                ((fnWindowStateChanged)cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))(INITIALIZED);
+        }
+
         // just because want curvy corner, must pair with PopStyleVar() restore style changes for rendering loop
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 4.f);
 
@@ -164,27 +169,19 @@ void onWindowStateChanged(int state) {
 
 void onButtonClicked(void* inst, GLUI::ButtonEventArgs param) {
     auto id = std::get<0>(param.data);
-    auto p1 = std::get<1>(param.data);
-    cerr << "Button: " << id.c_str() << " param: " << p1 << endl;
-    if (id == "setinputdevice") {
-        uiSetAudioButton = 1;
+    auto arg = std::get<1>(param.data);
+    cerr << "Button: " << id << " param: " << arg << endl;
+    uiSetAudioButton.store(id);
+    switch (id) {
+    case GLUI::CtrlFormIds::SetInputDeviceButton:
+    case GLUI::CtrlFormIds::SetOutputDeviceButton:
+    case GLUI::CtrlFormIds::SetInputFileButton:
+    case GLUI::CtrlFormIds::SetAdjustmentButton:
+        uiCtrlFormData.store((GLUI::CtrlFormData*)arg);
+        break;
+    default:
+        break;
     }
-    else if (id == "setoutputdevice") {
-        uiSetAudioButton = 2;
-    }
-    else if (id == "setinputfile") {
-        uiSetAudioButton = 3;
-    }
-    else {
-        uiSetAudioButton = 0;
-    }
-    uiSetAudioSource = p1;
-    /*if (id == "setaudiosource") {
-        uiSetAudioSource = true;
-    }
-    else {
-        uiStartStretcher = true;
-    }*/
 }
 
 void setGLWindow(PitchShifting::Parameters* param)
@@ -197,7 +194,7 @@ void setGLWindow(PitchShifting::Parameters* param)
     uiCallbackFnMap[ON_BUTTON_CLICKED] = &onButtonClicked;
     // UI thread reporting GUI states
     uiWindowState = NONE;
-    uiSetAudioSource = false;
+    uiCtrlFormData = nullptr;
     uiStartStretcher = false;
     auto bound = std::bind(uiThreadRun, uiCallbackFnMap, param);
     uiThread = new std::thread(bound);
@@ -329,11 +326,17 @@ int main(int argc, char **argv)
     bool checkAudio = setAudioSource(param, sther, sampleRate, channels, format, inputFrames);
 
     if (param.gui) {
+        // wait until all GUI classes constructed in another thread before calls GUI functions
+        while (uiWindowState != FnWindowStates::INITIALIZED) {
+            Sleep(100);
+        }
+
         // append list to control form, and defualt selection from cli options
         ctrlForm->SetAudioDeviceList(devices, param.inDeviceIdx, param.outDeviceIdx);
         ctrlForm->SetAudioFileList(files, 
             (param.inAudioType == SourceType::AudioFile ? param.inAudioParam : nullptr),
             (param.outAudioType == SourceType::AudioFile ? param.outAudioParam : nullptr));
+        ctrlForm->SetAudioAdjustment(param.pitchshift, param.formantshift, param.inputgaindb);
     }
     
     if (checkAudio == false && param.gui == false) {
@@ -353,33 +356,47 @@ int main(int argc, char **argv)
                 delete sther;
                 return 1;
             }
-            // TODO: partial audio source button behavior
-            if (uiSetAudioButton > 0) {
-                if (uiSetAudioButton == 1) {
-                    sther->CloseInputFile();
-                    param.inAudioType = SourceType::AudioDevice;
-                    param.inDeviceIdx = uiSetAudioSource;
-                }
-                if (uiSetAudioButton == 2) {
-                    sther->CloseOutputFile();
-                    param.outAudioType = SourceType::AudioDevice;
-                    param.outDeviceIdx = uiSetAudioSource;
-                }
-                if (uiSetAudioButton == 3) {
-                    sther->CloseInputStream();
-                    param.inAudioType = SourceType::AudioFile;
-                    param.inFilePath = files[uiSetAudioSource].desc;
-                }
+
+            bool audioSrcChanged = false;
+            auto data = uiCtrlFormData.load();
+            if (data == nullptr) continue;
+
+            switch (uiSetAudioButton) {
+            case GLUI::CtrlFormIds::SetInputDeviceButton:
+                sther->CloseInputFile();
+                param.inAudioType = SourceType::AudioDevice;
+                param.inDeviceIdx = data->InputSource.index;
+                audioSrcChanged = true;
+                break;
+            case GLUI::CtrlFormIds::SetOutputDeviceButton:
+                sther->CloseOutputFile();
+                param.outAudioType = SourceType::AudioDevice;
+                param.outDeviceIdx = data->OutputSource.index;
+                audioSrcChanged = true;
+                break;
+            case GLUI::CtrlFormIds::SetInputFileButton:
+                sther->CloseInputStream();
+                param.inAudioType = SourceType::AudioFile;
+                param.inFilePath = data->InputSource.desc;
+                audioSrcChanged = true;
+                break;
+            case GLUI::CtrlFormIds::SetAdjustmentButton:
+                param.pitchshift = data->PitchShift;
+                param.formantshift = data->FormantShift;
+                param.formant = (param.formantshift != 0.0 ? true : false);
+                param.inputgaindb = data->InputGain;
+                cerr << "pitch/formant/gain changed by user " << param.pitchshift << ", " << param.formantshift << ", " << param.inputgaindb << endl;
+                // just set, not go to check audio invoking start stretcher
+                break;
+            default:
+                break;
+            }
+            //TODO: reset button id flag, at here? you sure?
+            uiSetAudioButton = 0;
+
+            if (audioSrcChanged) {
                 checkAudio = setAudioSource(param, sther, sampleRate, channels, format, inputFrames);
             }
-            //if (uiSetAudioSource == true) {
-            //    uiSetAudioSource = false;
-            //    // so far only support audio device selection
-            //    ctrlForm->GetAudioSources(&param.inDeviceIdx, &param.outDeviceIdx);
-            //    cerr << "Got audio sources: " << param.inDeviceIdx << ", " << param.outDeviceIdx;
-            //    cerr << " than open stream to ensure the availability" << endl;
-            //    checkAudio = setAudioSource(param, sther, sampleRate, channels, format, inputFrames);
-            //}
         }
     }
 
@@ -390,11 +407,6 @@ int main(int argc, char **argv)
 
     //DEBUG: section for GUI initialization before stretcher creation(after ctor, but before rubber band configuration)
     if (param.gui) {
-        // wait until all GUI classes constructed in another thread (mainly for file waveform loading file)
-        while (uiWindowState != FnWindowStates::INITIALIZED) {
-            Sleep(100);
-        }
-
         // set audio information to GUI plot, given inFrame must afterward sther->SetInputStream for buffer initialization
         inWaveform->SetAudioInfo(sampleRate, channels, sther->inFrame, defBlockSize * channels);
         outWaveform->SetAudioInfo(

@@ -10,7 +10,8 @@ vector<int> stre;
 
 GLUI::CtrlForm::CtrlForm(GLFWwindow* window) :
 	parentWindow(window),
-	ctrlFormName("FixedMainFormName")
+	ctrlFormName("FixedMainFormName"),
+	FormData(CtrlFormData())
 {
 }
 
@@ -20,11 +21,8 @@ GLUI::CtrlForm::~CtrlForm()
 
 vector<SourceDesc> inSrcList;
 int inSrcIndex = -1;
-SourceDesc inSrcItem;
-
 vector<SourceDesc> outSrcList;
 int outSrcIndex = -1;
-SourceDesc outSrcItem;
 
 void GLUI::CtrlForm::SetAudioDeviceList(std::vector<PitchShifting::SourceDesc>& devices, int defInDevIndex, int defOutDevIndex)
 {
@@ -38,11 +36,10 @@ void GLUI::CtrlForm::SetAudioDeviceList(std::vector<PitchShifting::SourceDesc>& 
 		});
 	if (selin != inSrcList.end()) {
 		inSrcIndex = std::distance(inSrcList.begin(), selin);
-		inSrcItem = *selin;
+		FormData.InputSource = *selin;
 	}
 	else {
 		inSrcIndex = -1;
-		inSrcItem = SourceDesc();
 	}
 
 	std::copy_if(devices.begin(), devices.end(), std::back_inserter(outSrcList), [](SourceDesc& item) {
@@ -54,26 +51,23 @@ void GLUI::CtrlForm::SetAudioDeviceList(std::vector<PitchShifting::SourceDesc>& 
 		});
 	if (selout != outSrcList.end()) {
 		outSrcIndex = std::distance(outSrcList.begin(), selout);
-		outSrcItem = *selout;
+		FormData.OutputSource = *selout;
 	}
 	else {
 		outSrcIndex = -1;
-		outSrcItem = SourceDesc();
 	}
 }
 
 void GLUI::CtrlForm::GetAudioSources(int* inDevIndex, int* outDevIndex)
 {
-	if (inDevIndex) *inDevIndex = inSrcItem.index;
-	if (outDevIndex) *outDevIndex = outSrcItem.index;
+	if (inDevIndex) *inDevIndex = FormData.InputSource.index;
+	if (outDevIndex) *outDevIndex = FormData.OutputSource.index;
 }
 
 vector<SourceDesc> inFileList;
 int inFileIndex = -1;
-SourceDesc inFileItem;
 vector<SourceDesc> outFileList;
 int outFileIndex = -1;
-SourceDesc outFileItem;
 
 void GLUI::CtrlForm::SetAudioFileList(std::vector<PitchShifting::SourceDesc>& files, char* defInFile, char* defOutFile)
 {
@@ -84,16 +78,36 @@ void GLUI::CtrlForm::SetAudioFileList(std::vector<PitchShifting::SourceDesc>& fi
 			});
 		if (found != inFileList.end()) {
 			inFileIndex = std::distance(inFileList.begin(), found);
-			inFileItem = *found;
+			FormData.InputSource = *found;
 		}
 		else {
 			inFileIndex = -1;
-			inFileItem = SourceDesc();
+			//inFileItem = SourceDesc();
 		}
 	}
 }
 
 void GLUI::CtrlForm::GetAudioFiles(char* inFile, char* outFile)
+{
+
+}
+
+
+float sliderPitch = 0;
+float sliderFormant = 0;
+float sliderInputGain = 0;
+
+void GLUI::CtrlForm::SetAudioAdjustment(double pitch, double formant, double inputGain)
+{
+	sliderPitch = pitch;
+	sliderFormant = formant;
+	sliderInputGain = inputGain;
+	FormData.PitchShift = pitch;
+	FormData.FormantShift = formant;
+	FormData.InputGain = inputGain;
+}
+
+void GLUI::CtrlForm::GetAudioAdjustment(double* pitch, double* formant, double* inputGain)
 {
 
 }
@@ -112,20 +126,21 @@ void GLUI::CtrlForm::Render()
 	ImGui::Begin(ctrlFormName, NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
 
 	if (ImGui::Button("Set##inputdevice")) {
-		if (inSrcItem.index > -1) {
-			//TODO: reset input file if set before
-			if (OnButtonClicked) {
-				OnButtonClicked(this, ButtonEventArgs("setinputdevice", inSrcItem.index));
-			}
+		if (OnButtonClicked) {
+			OnButtonClicked(this, ButtonEventArgs(CtrlFormIds::SetInputDeviceButton, &FormData));
 		}
 	}
 	ImGui::SameLine();
-	if (ImGui::BeginCombo("Input Source", (!inSrcItem ? nullptr : inSrcItem.desc.c_str()))) {
+	const char* preview = nullptr;
+	if (FormData.InputSource.type == PitchShifting::SourceType::AudioDevice) {
+		preview = FormData.InputSource.desc.c_str();
+	}
+	if (ImGui::BeginCombo("Input Source", preview)) {
 		for (int i = 0; i < inSrcList.size(); i++) {
 			const bool isSelected = (inSrcIndex == i);
 			if (ImGui::Selectable(inSrcList[i].desc.c_str(), inSrcIndex)) {
 				inSrcIndex = i;
-				inSrcItem = inSrcList[i];
+				FormData.InputSource = inSrcList[i];
 			}
 
 			if (isSelected) ImGui::SetItemDefaultFocus();
@@ -134,20 +149,21 @@ void GLUI::CtrlForm::Render()
 	}
 
 	if (ImGui::Button("Set##outputdevice")) {
-		if (outSrcItem.index > -1) {
-			//TODO: reset output file if set before
-			if (OnButtonClicked) {
-				OnButtonClicked(this, ButtonEventArgs("setoutputdevice", outSrcItem.index));
-			}
+		if (OnButtonClicked) {
+			OnButtonClicked(this, ButtonEventArgs(CtrlFormIds::SetOutputDeviceButton, &FormData));
 		}
 	}
 	ImGui::SameLine();
-	if (ImGui::BeginCombo("Output Source", (!outSrcItem ? nullptr : outSrcItem.desc.c_str()))) {
+	preview = nullptr;
+	if (FormData.OutputSource.type == PitchShifting::SourceType::AudioDevice) {
+		preview = FormData.OutputSource.desc.c_str();
+	}
+	if (ImGui::BeginCombo("Output Source", preview)) {
 		for (int i = 0; i < outSrcList.size(); i++) {
 			const bool isSelected = (outSrcIndex == i);
 			if (ImGui::Selectable(outSrcList[i].desc.c_str(), outSrcIndex)) {
 				outSrcIndex = i;
-				outSrcItem = outSrcList[i];
+				FormData.OutputSource = outSrcList[i];
 			}
 
 			if (isSelected) ImGui::SetItemDefaultFocus();
@@ -156,37 +172,45 @@ void GLUI::CtrlForm::Render()
 	}
 
 	if (ImGui::Button("Set##inputfile")) {
-		if (inFileItem.desc.empty() == false) {
-			//TODO: should find a way passing string to caller, so far just like audio devices sending index
-			if (OnButtonClicked) {
-				OnButtonClicked(this, ButtonEventArgs("setinputfile", inFileItem.index));
-			}
+		if (OnButtonClicked) {
+			OnButtonClicked(this, ButtonEventArgs(CtrlFormIds::SetInputFileButton, &FormData));
 		}
 	}
 	ImGui::SameLine();
-	if (ImGui::BeginCombo("Input File", (!inFileItem ? nullptr : inFileItem.desc.c_str()))) {
+	preview = nullptr;
+	if (FormData.InputSource.type == PitchShifting::SourceType::AudioFile) {
+		preview = FormData.InputSource.desc.c_str();
+	}
+	if (ImGui::BeginCombo("Input File", preview)) {
 		for (int i = 0; i < inFileList.size(); i++) {
 			const bool isSelected = (inFileIndex == i);
 			if (ImGui::Selectable(inFileList[i].desc.c_str(), inFileIndex)) {
 				inFileIndex = i;
-				inFileItem = inFileList[i];
+				FormData.InputSource = inFileList[i];
 			}
 			if (isSelected) ImGui::SetItemDefaultFocus();
 		}
 		ImGui::EndCombo();
 	}
 
-	if (ImGui::Button("Set Audio Source")) {
-		int confirmSource = false;
-		if (inSrcItem.index > -1 && outSrcItem.index > -1) {
-			confirmSource = true;
-			if (OnButtonClicked) {
-				OnButtonClicked(this, ButtonEventArgs("setaudiosource", 0));
-			}
+	ImGui::Text("in: %d, out: %d", FormData.InputSource.index, FormData.OutputSource.index);
+
+	if (ImGui::Button("Set##adjustment")) {
+		if (OnButtonClicked) {
+			OnButtonClicked(this, ButtonEventArgs(CtrlFormIds::SetAdjustmentButton, &FormData));
 		}
 	}
-	ImGui::SameLine();
-	ImGui::Text("in: %d, out: %d", inSrcItem.index, outSrcItem.index);
+	// limit in 12 semitones
+	if (ImGui::SliderFloat("Pitch(semitones)", &sliderPitch, -12.f, 12.f, "%.1f", ImGuiSliderFlags_None)) {
+		FormData.PitchShift = sliderPitch;
+	}
+	if (ImGui::SliderFloat("Formant(semitones)", &sliderFormant, -12.f, 12.f, "%.1f", ImGuiSliderFlags_None)) {
+		FormData.FormantShift = sliderFormant;
+	}
+	if (ImGui::SliderFloat("InputGain(dB)", &sliderInputGain, -12.f, 12.f, "%.1f", ImGuiSliderFlags_None)) {
+		FormData.InputGain = sliderInputGain;
+	}
+	ImGui::Text("p: %.1f, f: %.1f, ig: %.1f", FormData.PitchShift, FormData.FormantShift, FormData.InputGain);
 
 	if (ImGui::Checkbox("world", &world_check)) {
 
