@@ -194,14 +194,23 @@ void onButtonClicked(void* inst, GLUI::ButtonEventArgs param) {
     }
 }
 
+// typedef the function pointers for further usage
+typedef void(*pfnWindowStateChanged)(int);
+typedef void(*pfnButtonClicked)(void*, GLUI::ButtonEventArgs);
+
 void setGLWindow(PitchShifting::Parameters* param)
 {
     // only run once
     //if (uiThread) return;
     // init callback function pointers
     uiCallbackFnMap.clear();
+#ifdef _WIN32
+    uiCallbackFnMap[ON_WINDOW_STATE_CHANGED] = &onWindowStateChanged;
+    uiCallbackFnMap[ON_BUTTON_CLICKED] = &onButtonClicked;
+#else
     uiCallbackFnMap[ON_WINDOW_STATE_CHANGED] = (void*)onWindowStateChanged;
     uiCallbackFnMap[ON_BUTTON_CLICKED] = (void*)onButtonClicked;
+#endif
     // UI thread reporting GUI states
     uiWindowState = NONE;
     uiCtrlFormData = nullptr;
@@ -562,7 +571,12 @@ int main(int argc, char **argv)
     // assign total frames count to stretcher after audio source accepted
     sther->totalFramesCount = inputFrames;
 
-    // section for GUI initialization before stretcher creation(after ctor, but before rubberband configuration)
+    // if use capture device as input, given duration or infinity -1?
+    if (param.inAudioType == SourceType::AudioDevice) {
+        inputFrames = std::numeric_limits<int64_t>::max();//sampleRate * 3600 * 3; // 3hr for long duration test 
+    }
+
+    //DEBUG: section for GUI initialization before stretcher creation(after ctor, but before rubber band configuration)
     if (param.gui) {
         // set audio information to GUI plot, given inFrame must afterward sther->SetInputStream for buffer initialization
         inWaveform->SetAudioInfo(sampleRate, channels, sther->inFrame, defBlockSize * channels);
