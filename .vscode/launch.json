@@ -18,7 +18,9 @@
                 "--realtime",
                 "--smoothing",
                 "--ignore-clipping",
-                "--gui"
+                "--gui",
+                "2", // input dev index
+                "1" // output dev index
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/pitch-shifting", // ensure correct cwd to load font file

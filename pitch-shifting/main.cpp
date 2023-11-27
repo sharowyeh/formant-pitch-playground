@@ -99,7 +99,7 @@ std::map<int, void*> uiCallbackFnMap;
 void uiCreate(const std::map<int, void*>& cbFnMapRef, PitchShifting::Parameters* paramPtr)
 {
     cerr << "UI thread debug level: " << paramPtr->debug << endl;
-    //DEBUG: singleton window instance
+    //DEBUG: singleton window instance // cannot ran in background thread failed in zmac
     window = GLUI::Window::Create("Rubberband GUI", 1366, 768);
     window->OnRenderFrame = [](GLUI::Window* wnd) {
         // is the same afterward the window->PrepareFrame()

@@ -9,19 +9,24 @@
                 "-fansi-escape-codes",
                 "-std=c++17",
                 "-stdlib=libc++",
-                "-g",
-                "${file}",
-                "${fileDirname}/*.cpp", // need all .cpp
+                "-g", // set for include debugging info
+                "${fileDirname}/main.cpp", // specify main instead selected .cpp
+                "${fileDirname}/stretcher.cpp",
+                "${fileDirname}/helper.cpp",
+                "${fileDirname}/parameters.cpp",
                 "${workspaceFolder}/imgui/*.cpp", // need imgui for gui
-                //"${fileDirname}/stretcher.cpp",
-                "-o",
-                "${fileDirname}/${fileBasenameNoExtension}.out",
+                "${fileDirname}/Window.cpp",
+                "${fileDirname}/CtrlForm.cpp",
+                "${fileDirname}/TimeoutPopup.cpp",
+                "${fileDirname}/Waveform.cpp",
+                "${fileDirname}/RealTimePlot.cpp",
+                "${fileDirname}/ScalePlot.cpp",
                 "-I${fileDirname}",
                 "-I${workspaceFolder}/../rubberband",
                 "-I/opt/homebrew/include",
                 "-L${workspaceFolder}/../rubberband/build",
                 "-L/opt/homebrew/lib",
-                "-L/Library/Developer/CommandLineTools/SDKs/MacOSX12.1.sdk/usr/lib",
+                "-L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib",
                 "-lportaudio",
                 "-lrubberband",
                 "-lsndfile",
@@ -32,6 +37,8 @@
 				"-lGLEW",
 				"-framework",
 				"OpenGL",
+                "-o",
+                "${fileDirname}/${fileBasenameNoExtension}.out",
                 "-Wl,-rpath,@executable_path", // for own built dylib with @rpath
             ],
             "options": {
