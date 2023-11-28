@@ -129,7 +129,7 @@ void uiCreate(const std::map<int, void*>& cbFnMapRef, PitchShifting::Parameters*
     scaleChart = new GLUI::ScalePlot("classy"); // use formant fft size 2048
 
     // DEBUG: read my debug audio
-    fileWaveform->LoadAudioFile("debug.wav");
+    //fileWaveform->LoadAudioFile("debug.wav");
 
     // rising UIs are ready and starting to render frame
     if (uiWindowState == FnWindowStates::NONE) {
@@ -197,7 +197,7 @@ void onButtonClicked(void* inst, GLUI::ButtonEventArgs param) {
 void setGLWindow(PitchShifting::Parameters* param)
 {
     // only run once
-    if (uiThread) return;
+    //if (uiThread) return;
     // init callback function pointers
     uiCallbackFnMap.clear();
     uiCallbackFnMap[ON_WINDOW_STATE_CHANGED] = (void*)onWindowStateChanged;
@@ -206,15 +206,15 @@ void setGLWindow(PitchShifting::Parameters* param)
     uiWindowState = NONE;
     uiCtrlFormData = nullptr;
     uiStartStretcher = false;
-    auto bound = std::bind([](const std::map<int, void*>& cbFnMapRef, PitchShifting::Parameters* paramPtr) {
-        uiCreate(cbFnMapRef, paramPtr);
-        while (uiPrepareFrame() == 0) {
-        }
-        uiTerminate(cbFnMapRef);
-        }, uiCallbackFnMap, param);
-    uiThread = new std::thread(bound);
-    //DEBUG: it still better join the thread to fully control gui life cycle
-    uiThread->detach();
+    //auto bound = std::bind([](const std::map<int, void*>& cbFnMapRef, PitchShifting::Parameters* paramPtr) {
+    //    uiCreate(cbFnMapRef, paramPtr);
+    //    while (uiPrepareFrame() == 0) {
+    //    }
+    //    uiTerminate(cbFnMapRef);
+    //    }, uiCallbackFnMap, param);
+    //uiThread = new std::thread(bound);
+    ////DEBUG: it still better join the thread to fully control gui life cycle
+    //uiThread->detach();
 }
 
 /* associate data pointer between rubberband stretcher data and GUI data present source */
@@ -268,6 +268,7 @@ bool setAudioSource(PitchShifting::Parameters& param, PitchShifting::Stretcher* 
         break;
     case SourceType::AudioDevice:
         result = sther->SetInputStream(param.inDeviceIdx, &sampleRate, &channels);
+        inputFrames = std::numeric_limits<int64_t>::max();//sampleRate * 3600 * 3; // 3hr for long duration test 
         break;
     default:
         result = false;
@@ -298,16 +299,151 @@ bool setAudioSource(PitchShifting::Parameters& param, PitchShifting::Stretcher* 
     return result;
 }
 
+// stretcher times for begins and elasped
+#ifdef _WIN32
+RubberBand::
+#endif
+timeval tv;
+#ifdef _WIN32
+RubberBand::
+#endif
+timeval etv;
+
+void processAudio(PitchShifting::Stretcher* sther, PitchShifting::Parameters* param) {
+    sther->stop = false;
+    sther->stopped = false;
+
+    bool successful = false;
+    int thisBlockSize;
+    int defBlockSize = sther->GetDefBlockSize();
+    double formantScale = param->formantscale;
+    int64_t inputFrames = sther->totalFramesCount;
+
+    while (!successful) { // we may have to repeat with a modified
+        // gain, if clipping occurs
+        successful = true;
+
+        sther->Create();
+
+        /* DEBUG: playground with channel data */
+        if (param->gui) {
+            mapDataPtrToGuiPlot(sther);
+        }
+
+        if (param->inAudioType == SourceType::AudioFile) {
+            sther->ExpectedInputDuration(inputFrames); // estimate from input file
+        }
+        sther->MaxProcessSize(defBlockSize);
+        sther->FormantScale(formantScale);
+        sther->SetIgnoreClipping(param->ignoreClipping);
+
+        //sther->StartInputStream(); //DEBUG: move out of thread
+        //sther->StartOutputStream();
+
+        if (!param->realtime) {
+            sther->StudyInputSound(); // only works on input data source is file
+        }
+
+        int frame = 0;
+        int percent = 0;
+
+        sther->SetKeyFrameMap();
+
+        // reset counters
+        sther->inputCount = 0;
+        sther->outputCount = 0;
+        bool clipping = false;
+
+        // The stretcher only pads the start in offline mode; to avoid
+        // a fade in at the start, we pad it manually in RT mode. Both
+        // of these functions are defined to return zero in offline mode
+        int toDrop = 0;
+        toDrop = sther->ProcessStartPad();
+        sther->SetDropFrames(toDrop);
+
+        bool reading = true;
+        //TODO: check here for realtime via portaudio
+        while (reading) {
+
+            thisBlockSize = defBlockSize;
+            sther->ApplyFreqMap(sther->inputCount, &thisBlockSize);
+
+            // TODO: given block size parameter if frequency map is enabled
+            // TODO: change input function to device instead of file
+            bool isFinal = sther->ProcessInputSound(&frame, &sther->inputCount);
+
+            // TODO: may check result if clipping occurred to successful variable
+            successful = sther->RetrieveAvailableData(&sther->outputCount, isFinal);
+            //if (!successful) break;
+
+            if (frame == 0 && !param->realtime && !param->quiet) {
+                cerr << "Pass 2: Processing..." << endl;
+            }
+
+            // show process percentage if input source is audio file(estimatable duration)
+            if (param->inAudioType == SourceType::AudioFile) {
+                int p = int((double(frame) * 100.0) / inputFrames);
+                if (p > percent || frame == 0) {
+                    percent = p;
+                    if (!param->quiet) {
+                        cerr << "\r" << percent << "% ";
+                    }
+                }
+            }
+
+            // exit while loop if all input frames are processed
+            if (frame >= inputFrames && inputFrames > 0) {
+                cerr << "=== End reading inputs ===" << endl;
+                // TODO: original design is frame + blockSize >= total input frames (forget why)
+                reading = false;
+            }
+            // peaceful leaving while loop if user press any key to cancel
+            if (isWaitKeyPressed()) {
+                cerr << "=== Cancel reading inputs ===" << endl;
+                reading = false;
+                successful = true;
+            }
+            // raised stop via GUI window state if destroyed to interrupt processing
+            if (param->gui && sther->stop) {
+                cerr << "=== GUI was destroyed to leave ===" << endl;
+                reading = false;
+            }
+        } // while (reading)
+
+        if (!successful) {
+            cerr << "WARNING: found clipping during process, decrease gain and process from begin again.." << endl;
+            cerr << "         but I want to ignore this for realtime process.." << endl;
+            if (!param->realtime) {
+                // TODO: new functions to reopen or seek 0 to input/output files for
+                //       re-entering while (!successful) loop
+                //continue;
+            }
+            successful = true; // ignore clipping
+        }
+
+        if (!param->quiet) {
+            cerr << "\r    " << endl;
+        }
+
+        // NOTE: get availble processed blocks from modified gain and clipping
+        //       after nothing can read from input raised final=true until successful=true
+        sther->RetrieveAvailableData(&sther->outputCount);
+
+    } // while (successful)
+    sther->stopped = true;
+}
+
 int main(int argc, char **argv)
 {
     PitchShifting::Parameters param;
     auto code = param.ParseOptions(argc, argv);
     if (code >= 0) return code;
 
-    //DEBUG: force use gui for gui development
-    param.gui = true;
     if (param.gui) {
         setGLWindow(&param);
+        uiCreate(uiCallbackFnMap, &param);
+        uiPrepareFrame(); // update a frame
+        //DEBUG: following stretcher func may take time makes frame freeze except move sther into thread 
     }
     
     // start stretcher class initialization here
@@ -343,7 +479,7 @@ int main(int argc, char **argv)
     if (param.gui) {
         // wait until all GUI classes constructed in another thread before calls GUI functions
         while (uiWindowState != FnWindowStates::INITIALIZED) {
-            usleep(1000000);
+            usleep(100000); // 100ms
         }
 
         // append list to control form, and defualt selection from cli options
@@ -365,7 +501,13 @@ int main(int argc, char **argv)
         checkAudio = false; // force to user confirm the selection
         // wait button event(from button clicked callback) after audio device selection in gui mode
         while (checkAudio == false) {
-            usleep(500000);
+            //usleep(500000);
+            // keep GUI frame rendering
+            if (uiPrepareFrame() != 0) {
+                // raise window state to DESTROYED
+                uiTerminate(uiCallbackFnMap);
+            }
+
             if (uiWindowState == FnWindowStates::DESTROYED) {
                 cerr << "CLI given in/out source failed and GUI closed" << endl;
                 delete sther;
@@ -414,11 +556,8 @@ int main(int argc, char **argv)
             }
         }
     }
-
-    // if use capture device as input, given duration or infinity -1?
-    if (param.inAudioType == SourceType::AudioDevice) {
-        inputFrames = std::numeric_limits<int64_t>::max();//sampleRate * 3600 * 3; // 3hr for long duration test 
-    }
+    // assign total frames count to stretcher after audio source accepted
+    sther->totalFramesCount = inputFrames;
 
     //DEBUG: section for GUI initialization before stretcher creation(after ctor, but before rubber band configuration)
     if (param.gui) {
@@ -439,9 +578,9 @@ int main(int argc, char **argv)
     cerr << "Using time ratio " << param.timeratio;
 
     if (!param.freqOrPitchMapSpecified) {
-        cerr << " and frequency ratio " << param.frequencyshift << " for pitch shift" << endl;
+        cerr << " and frequency ratio " << param.frequencyshift << " for pitch shifting" << endl;
     } else {
-        cerr << " and initial frequency ratio " << param.frequencyshift << "for pitch shift" << endl;
+        cerr << " and initial frequency ratio " << param.frequencyshift << "for pitch shifting" << endl;
     }
 
     // NOTE: formant adjustment only works to r3
@@ -451,13 +590,12 @@ int main(int argc, char **argv)
     double formantShift = pow(2.0, param.formantshift / 12.0);
 
     // default formant scale = 1.0 / freq(pitch)shift if formant enabled
-    double formantScale = 0.0;
     if (param.formant) {
         // NOTE: pitch changes also affact formant scaling
-        formantScale = 1.0 / param.frequencyshift;
-        cerr << "Formant preserved default " << formantScale << " by pitch shift" << endl;
-        formantScale *= formantShift;
-        cerr << "Formant ratio " << formantShift << ", results formant scale " << formantScale << endl;
+        param.formantscale = 1.0 / param.frequencyshift;
+        cerr << "Formant preserved default " << param.formantscale << " by pitch shift" << endl;
+        param.formantscale *= formantShift;
+        cerr << "Formant ratio " << formantShift << ", results formant scale " << param.formantscale << endl;
     }
     
     // apply gain, voltage level for audio signal will be pow(10.f, db / 20.f)
@@ -468,129 +606,30 @@ int main(int argc, char **argv)
         sther->SetInputGain(inputgainlv);
     }
 
-#ifdef _WIN32
-    RubberBand::
-#endif
-    timeval tv;
     (void)gettimeofday(&tv, 0);
-
-    size_t countIn = 0, countOut = 0;
-
-    bool successful = false;
-    int thisBlockSize;
     
     setWaitKey('q'); // set wait key for user interrupts process loop (mainly to cancel audio stream realtime works)
 
-    while (!successful) { // we may have to repeat with a modified
-                          // gain, if clipping occurs
-        successful = true;
+    sther->StartInputStream();
+    sther->StartOutputStream();
 
-        sther->Create(sampleRate, channels, param.timeratio, param.frequencyshift);
-        
-        /* DEBUG: playground with channel data */
-        if (param.gui) {
-            mapDataPtrToGuiPlot(sther);
+    // run stretcher process in the thread isolate from main ui 
+    auto bound = std::bind([](PitchShifting::Stretcher* stherPtr, PitchShifting::Parameters* paramPtr) {
+        processAudio(stherPtr, paramPtr);
+        }, sther, &param);
+    stherThread = new std::thread(bound);
+    stherThread->detach();
+
+    // keep GUI rendering to display charts
+    while (uiPrepareFrame() == 0) {
+    }
+    uiTerminate(uiCallbackFnMap);
+    if (uiWindowState == FnWindowStates::DESTROYED) {
+        sther->stop = true;
+        while (sther->stopped == false) {
+            usleep(10000);
         }
-        
-        if (param.inAudioType == SourceType::AudioFile) {
-            sther->ExpectedInputDuration(inputFrames); // estimate from input file
-        }
-        sther->MaxProcessSize(defBlockSize);
-        sther->FormantScale(formantScale);
-        sther->SetIgnoreClipping(param.ignoreClipping);
-
-        sther->StartInputStream();
-        sther->StartOutputStream();
-
-        if (!param.realtime) {
-            sther->StudyInputSound(); // only works on input data source is file
-        }
-
-        int frame = 0;
-        int percent = 0;
-
-        sther->SetKeyFrameMap();
-
-        countIn = 0;
-        countOut = 0;
-        bool clipping = false;
-
-        // The stretcher only pads the start in offline mode; to avoid
-        // a fade in at the start, we pad it manually in RT mode. Both
-        // of these functions are defined to return zero in offline mode
-        int toDrop = 0;
-        toDrop = sther->ProcessStartPad();
-        sther->SetDropFrames(toDrop);
-
-        bool reading = true;
-        //TODO: check here for realtime via portaudio
-        while (reading) {
-
-            thisBlockSize = defBlockSize;
-            sther->ApplyFreqMap(countIn, &thisBlockSize);
-
-            // TODO: given block size parameter if frequency map is enabled
-            // TODO: change input function to device instead of file
-            bool isFinal = sther->ProcessInputSound(&frame, &countIn);
-
-            // TODO: may check result if clipping occurred to successful variable
-            successful = sther->RetrieveAvailableData(&countOut, isFinal);
-            //if (!successful) break;
-            
-            if (frame == 0 && !param.realtime && !param.quiet) {
-                cerr << "Pass 2: Processing..." << endl;
-            }
-
-            // show process percentage if input source is audio file(estimatable duration)
-            if (param.inAudioType == SourceType::AudioFile) {
-                int p = int((double(frame) * 100.0) / inputFrames);
-                if (p > percent || frame == 0) {
-                    percent = p;
-                    if (!param.quiet) {
-                        cerr << "\r" << percent << "% ";
-                    }
-                }
-            }
-            
-            // exit while loop if all input frames are processed
-            if (frame >= inputFrames && inputFrames > 0) {
-                cerr << "=== End reading inputs ===" << endl;
-                // TODO: original design is frame + blockSize >= total input frames (forget why)
-                reading = false;
-            }
-            // peaceful leaving while loop if user press any key to cancel
-            if (isWaitKeyPressed()) {
-                cerr << "=== Cancel reading inputs ===" << endl;
-                reading = false;
-                successful = true;
-            }
-            //DEBUG: check GUI window state if destroyed to interrupt processing
-            if (param.gui && uiWindowState == FnWindowStates::DESTROYED) {
-                cerr << "=== GUI was destroyed to leave ===" << endl;
-                reading = false;
-            }
-        } // while (reading)
-
-        if (!successful) {
-            cerr << "WARNING: found clipping during process, decrease gain and process from begin again.." << endl;
-            cerr << "         but I want to ignore this for realtime process.." << endl;
-            if (!param.realtime) {
-                // TODO: new functions to reopen or seek 0 to input/output files for
-                //       re-entering while (!successful) loop
-                //continue;
-            }
-            successful = true; // ignore clipping
-        }
-    
-        if (!param.quiet) {
-            cerr << "\r    " << endl;
-        }
-
-        // NOTE: get availble processed blocks from modified gain and clipping
-        //       after nothing can read from input raised final=true until successful=true
-        sther->RetrieveAvailableData(&countOut);
-
-    } // while (successful)
+    }
 
     sther->CloseInputFile();
     sther->CloseOutputFile();
@@ -600,17 +639,15 @@ int main(int argc, char **argv)
     sther->StopOutputStream();
 
     if (!param.quiet) {
-
+        auto countIn = sther->inputCount;
+        auto countOut = sther->outputCount;
         cerr << "in: " << countIn << ", out: " << countOut
              << ", ratio: " << float(countOut)/float(countIn)
              << ", ideal output: " << lrint(countIn * param.timeratio)
              << ", error: " << int(countOut) - lrint(countIn * param.timeratio)
              << endl;
 
-#ifdef _WIN32
-        RubberBand::
-#endif
-            timeval etv;
+
         (void)gettimeofday(&etv, 0);
         
         etv.tv_sec -= tv.tv_sec;

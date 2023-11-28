@@ -11,10 +11,12 @@ public:
     double timeratio = 1.0;
     // estimate output sound file duration, default unset(0.0)
     double duration = 0.0;
-    double pitchshift = 0.0;
-    // percentage, default 1.0
+    double pitchshift = 0.0; //semitones
+    // R/W pitch scale percentage, default 1.0
     double frequencyshift = 1.0;
     double formantshift = 0.0; //semitones
+    // R/W formant scale percentage, default = 1.0 / frequencyshift(pitch scale) if formant enabled
+    double formantscale = 1.0;
     int debug = 3;
     bool realtime = false;
     bool precisiongiven = false;
@@ -80,15 +82,18 @@ public:
     int ResolveArguments();
 
     virtual ~Parameters() {
+        if (disposed) return;
         // release from strdup/malloc in ParseOptions()
         if (inAudioParam) free(inAudioParam);
         if (outAudioParam) free(outAudioParam);
+        disposed = true;
     }
 private:
     int argc;
     char** argv;
     /* for `r3` checks */
     void checkName(int c, char** v);
+    bool disposed = false;
 };
 
 }; // namespace PitchShifting

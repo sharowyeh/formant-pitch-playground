@@ -94,8 +94,8 @@ public:
     bool SetOutputFile(std::string fileName,
         int sampleRate, int channels, int format);
 
-    // basically given ctor params to fullfill RubberBandStretcher
-    void Create(size_t sampleRate, int channels, double timeRatio, double pitchScale);
+    // (re)create the RubberBandStretcher, required settings from ctor given parameters, and input source description
+    void Create();
     // works on input file, ignore in realtime mode
     void ExpectedInputDuration(size_t samples);
     void MaxProcessSize(size_t samples);
@@ -147,6 +147,14 @@ public:
     SourceDesc inSrcDesc;
     /* choosen source by set output stream/set output file */
     SourceDesc outSrcDesc;
+
+    int GetDefBlockSize() { return defBlockSize; }
+    int64_t totalFramesCount = 0; //isolated from main func
+    size_t inputCount = 0; //isolated from main func
+    size_t outputCount = 0; //isolated from main func
+    // for status control(if run in the thread)
+    bool stop = false;
+    bool stopped = false;
 
     //DEBUG: try to use consistent size of single frame for display buffer, data just overwritten in next frame arrived
     float* inFrame;
@@ -213,7 +221,7 @@ private:
     RubberBandStretcher *pts;
     RubberBandStretcher::Options options;
     
-    // options from CLI or GUI from Create() to rubber band stretcher creation
+    // options from CLI or GUI from ctor to rubber band stretcher creation
     Parameters* param;
 
     std::map<size_t, size_t> timeMap;

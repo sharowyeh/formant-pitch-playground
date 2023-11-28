@@ -251,7 +251,7 @@ int Parameters::ResolveArguments()
         // original rubberband sample separate file extension code block...
         for (int i = strlen(inAudioParam); i > 0; ) {
             if (inAudioParam[--i] == '.') {
-                inFileExt = inAudioParam + i + 1;
+                inFileExt = std::string(inAudioParam + i + 1);
                 inFilePath = std::string(inAudioParam);
                 inAudioType = 1;// SourceType::AudioFile
                 break;

@@ -579,7 +579,7 @@ Stretcher::SetOutputFile(std::string fileName,
 }
 
 void 
-Stretcher::Create(size_t sampleRate, int channels, double timeRatio, double pitchScale) {
+Stretcher::Create() {
     if (pts) {
         delete pts;
     }
@@ -588,9 +588,13 @@ Stretcher::Create(size_t sampleRate, int channels, double timeRatio, double pitc
     SetOptions(param->finer, param->realtime, param->typewin, param->smoothing, param->formant, param->together,
         param->hqpitch, param->lamination, param->threading, param->transients, param->detector, param->crispness);
 
+    size_t sampleRate = inSrcDesc.sampleRate;
+    int channels = inSrcDesc.inputChannels;
+    double timeRatio = param->timeratio;
+    double pitchScale = param->frequencyshift;
     pts = new RubberBand::RubberBandStretcher(sampleRate, channels, options, timeRatio, pitchScale);
-    assert(param->timeratio == timeRatio); // given from parameter should be equal to its pointer
-    assert(param->frequencyshift == pitchScale);
+    //assert(param->timeratio == timeRatio); // given from parameter should be equal to its pointer
+    //assert(param->frequencyshift == pitchScale);
 }
 
 void
@@ -612,9 +616,7 @@ double
 Stretcher::FormantScale(double scale) {
     if (!pts) return 0;
 
-    // TODO: can go over with default freq shifting if formant option set for preserved
-    // if (scale == 0.0)
-    //     scale = 1.0 / frequencyshift;
+    assert(scale == param->formantscale);
     if (scale > 0) {
         pts->setFormantScale(scale);
     }
