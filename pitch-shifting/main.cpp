@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <limits>
 
 #include "stretcher.hpp"
 using PitchShifting::SourceType;
@@ -94,7 +95,7 @@ enum FnCallbackIds :int {
 };
 std::map<int, void*> uiCallbackFnMap;
 
-void uiThreadRun(const std::map<int, void*>& cbFnMapRef, PitchShifting::Parameters* paramPtr)
+void uiCreate(const std::map<int, void*>& cbFnMapRef, PitchShifting::Parameters* paramPtr)
 {
     cerr << "UI thread debug level: " << paramPtr->debug << endl;
     //DEBUG: singleton window instance
@@ -129,31 +130,39 @@ void uiThreadRun(const std::map<int, void*>& cbFnMapRef, PitchShifting::Paramete
     // DEBUG: read my debug audio
     fileWaveform->LoadAudioFile("debug.wav");
 
-    while (!window->PrepareFrame()) {
-        // rising UIs are ready and starting to render frame
-        if (uiWindowState == FnWindowStates::NONE) {
-            uiWindowState = INITIALIZED;
-            if (cbFnMapRef.at(ON_WINDOW_STATE_CHANGED)) // can't use [] because it's const
-                ((fnWindowStateChanged)cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))(INITIALIZED);
-        }
-
-        // just because want curvy corner, must pair with PopStyleVar() restore style changes for rendering loop
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 4.f);
-
-        ctrlForm->Render();
-        leavePopup->Render();
-        fileWaveform->Update();
-        inWaveform->Update();
-        outWaveform->Update();
-        formantChart->Update();
-        scaleChart->Update();
-        
-        ImGui::PopStyleVar();
-
-        //ImPlot::ShowDemoWindow();
-        
-        window->SwapWindow();
+    // rising UIs are ready and starting to render frame
+    if (uiWindowState == FnWindowStates::NONE) {
+        uiWindowState = INITIALIZED;
+        if (cbFnMapRef.at(ON_WINDOW_STATE_CHANGED)) // can't use [] because it's const
+            ((fnWindowStateChanged)cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))(INITIALIZED);
     }
+}
+
+int uiPrepareFrame() {
+    int code = window->PrepareFrame();
+    if (code > 0) return code;
+
+    // just because want curvy corner, must pair with PopStyleVar() restore style changes for rendering loop
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 4.f);
+
+    ctrlForm->Render();
+    leavePopup->Render();
+    fileWaveform->Update();
+    inWaveform->Update();
+    outWaveform->Update();
+    formantChart->Update();
+    scaleChart->Update();
+
+    ImGui::PopStyleVar();
+
+    //ImPlot::ShowDemoWindow();
+
+    window->SwapWindow();
+
+    return 0;
+}
+
+void uiTerminate(const std::map<int, void*>& cbFnMapRef) {
     uiWindowState = RENDERING_FINISHED;
     if (cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))
         ((fnWindowStateChanged)cbFnMapRef.at(ON_WINDOW_STATE_CHANGED))(RENDERING_FINISHED);
@@ -190,13 +199,18 @@ void setGLWindow(PitchShifting::Parameters* param)
     if (uiThread) return;
     // init callback function pointers
     uiCallbackFnMap.clear();
-    uiCallbackFnMap[ON_WINDOW_STATE_CHANGED] = &onWindowStateChanged;
-    uiCallbackFnMap[ON_BUTTON_CLICKED] = &onButtonClicked;
+    uiCallbackFnMap[ON_WINDOW_STATE_CHANGED] = (void*)onWindowStateChanged;
+    uiCallbackFnMap[ON_BUTTON_CLICKED] = (void*)onButtonClicked;
     // UI thread reporting GUI states
     uiWindowState = NONE;
     uiCtrlFormData = nullptr;
     uiStartStretcher = false;
-    auto bound = std::bind(uiThreadRun, uiCallbackFnMap, param);
+    auto bound = std::bind([](const std::map<int, void*>& cbFnMapRef, PitchShifting::Parameters* paramPtr) {
+        uiCreate(cbFnMapRef, paramPtr);
+        while (uiPrepareFrame() == 0) {
+        }
+        uiTerminate(cbFnMapRef);
+        }, uiCallbackFnMap, param);
     uiThread = new std::thread(bound);
     //DEBUG: it still better join the thread to fully control gui life cycle
     uiThread->detach();
@@ -328,7 +342,7 @@ int main(int argc, char **argv)
     if (param.gui) {
         // wait until all GUI classes constructed in another thread before calls GUI functions
         while (uiWindowState != FnWindowStates::INITIALIZED) {
-            Sleep(100);
+            usleep(1000000);
         }
 
         // append list to control form, and defualt selection from cli options
@@ -350,7 +364,7 @@ int main(int argc, char **argv)
         checkAudio = false; // force to user confirm the selection
         // wait button event(from button clicked callback) after audio device selection in gui mode
         while (checkAudio == false) {
-            Sleep(500);
+            usleep(500000);
             if (uiWindowState == FnWindowStates::DESTROYED) {
                 cerr << "CLI given in/out source failed and GUI closed" << endl;
                 delete sther;
@@ -402,7 +416,7 @@ int main(int argc, char **argv)
 
     // if use capture device as input, given duration or infinity -1?
     if (param.inAudioType == SourceType::AudioDevice) {
-        inputFrames = (int)INFINITE;//sampleRate * 3600 * 3; // 3hr for long duration test 
+        inputFrames = std::numeric_limits<int64_t>::max();//sampleRate * 3600 * 3; // 3hr for long duration test 
     }
 
     //DEBUG: section for GUI initialization before stretcher creation(after ctor, but before rubber band configuration)

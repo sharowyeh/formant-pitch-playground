@@ -45,9 +45,9 @@ namespace GLUI {
 
 		/*
 		* poll window events and prepare frame context
-		* \return bool isWindowShouldClose?
+		* \return int isWindowShouldClose?
 		*/
-		bool PrepareFrame();
+		int PrepareFrame();
 		/* update frame to graphic output */
 		void SwapWindow();
 

@@ -112,7 +112,7 @@ namespace GLUI {
 		glfwTerminate();
 	}
 
-	bool Window::PrepareFrame()
+	int Window::PrepareFrame()
 	{
 		glfwPollEvents();
 		

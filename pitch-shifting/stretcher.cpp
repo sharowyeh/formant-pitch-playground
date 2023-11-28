@@ -800,7 +800,7 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
 
     // for original code design, also be reused for retrieve data behavior
     int blockSize = Stretcher::defBlockSize;
-
+    int channels = inputChannels;
     int count = -1;
     // separate by file or by stream
     if (sndfileIn) {
@@ -808,17 +808,17 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
             return false;
         }
         // copy frame data to sther->inFrame likes input audio device callback does for GUI display
-        std::copy(ibuf, ibuf + inputChannels * count, inFrame);
+        std::copy(ibuf, ibuf + channels * count, inFrame);
     }
     if (inStream) {
         std::lock_guard<std::mutex> lock(inMutex);
 
         count = blockSize;
-        if (inputChannels * count > inBuffer->getReadSpace()) {
+        if (channels * count > inBuffer->getReadSpace()) {
             return false; // buffer not enough for process
         }
         else {
-            inBuffer->read(ibuf, inputChannels * count);
+            inBuffer->read(ibuf, channels * count);
         }
         // debug
         if (debugBuffer && time(nullptr) - debugTimestampIn >= 2) {
@@ -829,14 +829,14 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
 
     bool debugMax = false;
     float value;
-    for (int c = 0; c < inputChannels; ++c) {
+    for (int c = 0; c < channels; ++c) {
         for (int i = 0; i < count; ++i) {
-            value = inGain * ibuf[i * inputChannels + c];
+            value = inGain * ibuf[i * channels + c];
             if (value > 1.f) value = 1.f;
             if (value < -1.f) value = -1.f;
             cbuf[c][i] = value;
-            if (debugBuffer && debugInMaxVal < ibuf[i * inputChannels + c]) {
-                debugInMaxVal = ibuf[i * inputChannels + c];
+            if (debugBuffer && debugInMaxVal < ibuf[i * channels + c]) {
+                debugInMaxVal = ibuf[i * channels + c];
                 debugMax = true;
             }
         }
@@ -881,6 +881,8 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
     int blockSize = Stretcher::defBlockSize;
     int avail;
     bool clipping = false;
+    int channels = inputChannels;
+    int outChannels = outputChannels;
     while ((avail = pts->available()) >= 0) {
         if (debug > 1) {
             if (isFinal) {
@@ -952,7 +954,7 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
         *pCountOut += blockSize;
 
         float value;
-        for (size_t c = 0; c < inputChannels; ++c) {
+        for (size_t c = 0; c < channels; ++c) {
             for (int i = 0; i < blockSize; ++i) {
                 value = outGain * cbuf[c][i];
                 if (ignoreClipping) { // i.e. just clamp, don't bail out
@@ -965,34 +967,34 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
                     }
                 }
                 cbuf[c][i] = value;
-                if (c < outputChannels) {
-                    obuf[i * outputChannels + c] = value;
+                if (c < outChannels) {
+                    obuf[i * outChannels + c] = value;
                 }
             }
         }
         // rest of channels if output has more than input
-        for (int c = inputChannels; c < outputChannels; ++c) {
+        for (int c = channels; c < outChannels; ++c) {
             for (int i = 0; i < blockSize; ++i) {
-                obuf[i * outputChannels + c] = cbuf[0][i];
+                obuf[i * outChannels + c] = cbuf[0][i];
             }
         }
 
         int writable = outBuffer->getWriteSpace();
-        int outBufSize = outputChannels * defBlockSize + reserveBuffer; // NOTE: same with PrepareOutputBuffer
+        int outBufSize = outChannels * defBlockSize + reserveBuffer; // NOTE: same with PrepareOutputBuffer
         // NOTE: output buffer usage is low when input process in heavy work,
         //        correspondly, usage is high from lightweight input signals or output device rendering too slow.
         // DEBUG: wait a latency until outStream consumed buffer before goes to next loop process incoming inputs,
         //        this behavior IS NOT ideal if using audio device retrieves input signals realtime.
         if (sndfileIn && writable < outBufSize / 2) {
             // if available buffer less than 50%, wait a latency = 1000(ms) * ch * frame / sample rate
-            Sleep(1000.f * outputChannels * defBlockSize / outputSampleRate);
+            usleep(1000000.f * outChannels * defBlockSize / outputSampleRate);
         }
         {
             std::lock_guard<std::mutex> lock(outMutex);
 
             writable = outBuffer->getWriteSpace();
-            if (outputChannels * blockSize < writable) {
-                outBuffer->write(obuf, outputChannels * blockSize);
+            if (outChannels * blockSize < writable) {
+                outBuffer->write(obuf, outChannels* blockSize);
             }
             if (debugBuffer && time(nullptr) - debugTimestampOut >= 2) { // print out internal n seconds
                 debugTimestampOut = time(nullptr);
@@ -1099,12 +1101,13 @@ Stretcher::inputAudioCallback(
     Stretcher *pst = (Stretcher *)data;
 
     float *in = (float*)inBuffer;
+    int channels = pst->inputChannels;
     // TODO: may quick check levels to drop frames prevent too many input can't process immediately
     {
         std::lock_guard<std::mutex> lock(pst->inMutex); // automatically unlock when exit the code scope
 
         int writable = pst->inBuffer->getWriteSpace();
-        if (pst->inputChannels * frames > writable) {
+        if (channels * frames > writable) {
             /*if (pst->debugBuffer) {
                 cerr << "input buffer is full" << endl;
             }*/
@@ -1113,11 +1116,11 @@ Stretcher::inputAudioCallback(
             /*if (pst->debugBuffer) {
                 cerr << "input buffer usage " << (int)((1.f - (float)writable / pst->inBuffer->getSize()) * 100.f) << "%" << endl;
             }*/
-            pst->inBuffer->write(in, pst->inputChannels * frames);
+            pst->inBuffer->write(in, channels * frames);
         }
     }
     //DEBUG: write to frame buffer for GUI rendering, i decide to ignore anything if buffer is full
-    std::copy(in, in + pst->inputChannels * frames, pst->inFrame);
+    std::copy(in, in + channels * frames, pst->inFrame);
     //memcpy_s(pst->inFrame, pst->inputChannels * frames, in, pst->inputChannels * frames);
 
     return paContinue;
@@ -1135,7 +1138,7 @@ Stretcher::outputAudioCallback(
 
     //float *in = (float*)inBuffer;
     float *out = (float*)outBuffer;
-
+    int channels = pst->outputChannels;
     {
         std::lock_guard<std::mutex> lock(pst->outMutex); // automatically unlock when exit the code scope
 
@@ -1146,16 +1149,16 @@ Stretcher::outputAudioCallback(
             }
             return paContinue;
         }
-        if (pst->outputChannels * frames > pst->outBuffer->getReadSpace()) {
+        if (channels * frames > pst->outBuffer->getReadSpace()) {
             /*if (pst->debugBuffer) {
                 cerr << "output buffer is not enough" << endl;
             }*/
         } else {
-            pst->outBuffer->read(out, pst->outputChannels * frames);
+            pst->outBuffer->read(out, channels * frames);
         }
     }
     //DEBUG: write to frame buffer for GUI rendering, i decide to ignore anything if buffer is full
-    std::copy(out, out + pst->outputChannels * frames, pst->outFrame);
+    std::copy(out, out + channels * frames, pst->outFrame);
     //memcpy_s(pst->outFrame, pst->outputChannels * frames, out, pst->outputChannels * frames);
 
     return paContinue;
