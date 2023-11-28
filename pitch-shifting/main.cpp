@@ -14,6 +14,7 @@
 #include "stretcher.hpp"
 using PitchShifting::SourceType;
 using PitchShifting::SourceDesc;
+std::thread* stherThread = nullptr;
 
 // for rubberband profiler to dump signal process information,
 // get rubberband source code from github within same system installed version
@@ -424,10 +425,10 @@ int main(int argc, char **argv)
         // set audio information to GUI plot, given inFrame must afterward sther->SetInputStream for buffer initialization
         inWaveform->SetAudioInfo(sampleRate, channels, sther->inFrame, defBlockSize * channels);
         outWaveform->SetAudioInfo(
-            sther->outInfo->defaultSampleRate,
-            sther->outInfo->maxOutputChannels,
+            sther->outSrcDesc.sampleRate,
+            sther->outSrcDesc.outputChannels,
             sther->outFrame,
-            defBlockSize * sther->outInfo->maxOutputChannels);
+            defBlockSize * sther->outSrcDesc.outputChannels);
     }
 
     if (param.pitchshift != 0.0) {

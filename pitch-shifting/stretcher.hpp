@@ -102,7 +102,7 @@ public:
     double FormantScale(double scale = 0.0);
 
     // compare to stretcher::channels and block size for buffer allocation/reallocation
-    void PrepareInputBuffer(int channels, int blocks, size_t reserves);
+    void PrepareInputBuffer(int channels, int blocks, size_t reserves, int prevChannels);
     void PrepareOutputBuffer(int channels, int blocks, size_t reserves);
 
     // study loaded input file for stretcher (to pitch analyzing?), ignore in realtime mode 
@@ -131,10 +131,6 @@ public:
 
     // list audio devices via portaudio
     int ListAudioDevices(std::vector<SourceDesc>& devices);
-    PaStreamCallback *debugCallback;
-
-    const PaDeviceInfo* inInfo = nullptr;
-    const PaDeviceInfo* outInfo = nullptr;
 
     bool SetInputStream(int index, int *pSampleRate = nullptr, int *pChannels = nullptr);
     void StartInputStream() { if (inStream) Pa_StartStream(inStream); }
@@ -147,6 +143,11 @@ public:
     // DEBUG: original design for waiting audio stream to receive/send audio frames in portaudio callback, now use main loop instead
     void WaitStream(int timeout = 2000) { if (inStream || outStream) Pa_Sleep(timeout); };
     
+    /* choosen source by set input stream/load input file */
+    SourceDesc inSrcDesc;
+    /* choosen source by set output stream/set output file */
+    SourceDesc outSrcDesc;
+
     //DEBUG: try to use consistent size of single frame for display buffer, data just overwritten in next frame arrived
     float* inFrame;
     float* outFrame;
@@ -183,6 +184,11 @@ public:
 protected:
     // make sure deconstruction will be done
     void dispose();
+
+    PaStreamCallback* debugCallback;
+
+    const PaDeviceInfo* inInfo = nullptr;
+    const PaDeviceInfo* outInfo = nullptr;
 
     PaStream* inStream;
     PaStream* outStream;
@@ -237,10 +243,6 @@ private:
     // output sound info
     SF_INFO sfinfoOut;
 
-    int inputSampleRate;
-    int outputSampleRate;
-    int inputChannels;
-    int outputChannels;
     int defBlockSize = 1024;
 
     // for own input device, i need to check input amplitude

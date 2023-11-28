@@ -54,12 +54,8 @@ Stretcher::Stretcher(Parameters* parameters, int defBlockSize, int debugLevel) {
     sndfileIn = nullptr;
     sndfileOut = nullptr;
 
-    inputSampleRate = 0;
-    outputSampleRate = 0;
-    inputChannels = 0;
-    outputChannels = 0;
     Stretcher::defBlockSize = defBlockSize;
-    
+
     cbuf = nullptr;
     ibuf = nullptr;
     obuf = nullptr;
@@ -192,7 +188,7 @@ Stretcher::dispose() {
         ibuf = nullptr;
     }
     if (cbuf) {
-        for (int c = 0; c < inputChannels; c++) {
+        for (int c = 0; c < inSrcDesc.inputChannels; c++) {
             delete[] cbuf[c];
         }
         delete[] cbuf;
@@ -471,11 +467,6 @@ bool
 Stretcher::LoadInputFile(std::string fileName,
     int *pSampleRate, int *pChannels, int *pFormat, int64_t *pFramesCount,
     double ratio, double duration) {
-    // default value for return parameters
-    *pSampleRate = 0;
-    *pChannels = 0;
-    *pFormat = 0;
-    *pFramesCount = 0;
 
     CloseInputFile();
     memset(&sfinfoIn, 0, sizeof(SF_INFO));
@@ -502,15 +493,22 @@ Stretcher::LoadInputFile(std::string fileName,
     }
     assert(param->timeratio == ratio); // given from parameter should be equal to its pointer
     assert(param->duration == duration);
-    Stretcher::inputSampleRate = sfinfoIn.samplerate;
-    if (Stretcher::inputChannels != sfinfoIn.channels) {
-        PrepareInputBuffer(sfinfoIn.channels, defBlockSize, reserveBuffer);
-        Stretcher::inputChannels = sfinfoIn.channels;
+    if (sfinfoIn.channels != inSrcDesc.inputChannels) {
+        PrepareInputBuffer(sfinfoIn.channels, defBlockSize, reserveBuffer, inSrcDesc.inputChannels);
     }
-    *pSampleRate = sfinfoIn.samplerate;
-    *pChannels = sfinfoIn.channels;
-    *pFormat = sfinfoIn.format;
-    *pFramesCount = sfinfoIn.frames;
+    inSrcDesc = {
+        SourceType::AudioFile,
+        -1,
+        fileName,
+        sfinfoIn.channels,
+        0,
+        sfinfoIn.samplerate
+    };
+
+    if (pSampleRate) *pSampleRate = sfinfoIn.samplerate;
+    if (pChannels) *pChannels = sfinfoIn.channels;
+    if (pFormat) *pFormat = sfinfoIn.format;
+    if (pFramesCount) *pFramesCount = sfinfoIn.frames;
 
     return true;
 }
@@ -565,11 +563,18 @@ Stretcher::SetOutputFile(std::string fileName,
         return false;
     }
 
-    Stretcher::outputSampleRate = sfinfoOut.samplerate;
-    if (Stretcher::outputChannels != sfinfoOut.channels) {
+    if (sfinfoOut.channels != outSrcDesc.outputChannels) {
         PrepareOutputBuffer(sfinfoOut.channels, defBlockSize, reserveBuffer);
-        Stretcher::outputChannels = sfinfoOut.channels;
     }
+    outSrcDesc = {
+        SourceType::AudioFile,
+        -1,
+        fileName,
+        0,
+        sfinfoOut.channels,
+        sfinfoOut.samplerate
+    };
+
     return true;
 }
 
@@ -617,14 +622,14 @@ Stretcher::FormantScale(double scale) {
 }
 
 void
-Stretcher::PrepareInputBuffer(int channels, int blocks, size_t reserves) {
+Stretcher::PrepareInputBuffer(int channels, int blocks, size_t reserves, int prevChannels) {
     // cleanup exists allocation
     if (ibuf) {
         delete ibuf;
         ibuf = nullptr;
     }
     if (cbuf) {
-        for (int c = 0; c < Stretcher::inputChannels; c++) { // use Stretcher::inputChannels as previous channel count
+        for (int c = 0; c < prevChannels; c++) { // use prev input channels
             delete cbuf[c];
         }
         delete[] cbuf;
@@ -745,7 +750,7 @@ Stretcher::ProcessStartPad() {
             << " at output" << endl;
     }
     if (toPad > 0) {
-        for (size_t c = 0; c < inputChannels; ++c) {
+        for (size_t c = 0; c < inSrcDesc.inputChannels; ++c) {
             for (int i = 0; i < blockSize; ++i) {
                 cbuf[c][i] = 0.f;
             }
@@ -800,7 +805,7 @@ Stretcher::ProcessInputSound(/*int blockSize, */int *pFrame, size_t *pCountIn) {
 
     // for original code design, also be reused for retrieve data behavior
     int blockSize = Stretcher::defBlockSize;
-    int channels = inputChannels;
+    int channels = inSrcDesc.inputChannels;
     int count = -1;
     // separate by file or by stream
     if (sndfileIn) {
@@ -881,8 +886,9 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
     int blockSize = Stretcher::defBlockSize;
     int avail;
     bool clipping = false;
-    int channels = inputChannels;
-    int outChannels = outputChannels;
+    int channels = inSrcDesc.inputChannels;
+    int outChannels = outSrcDesc.outputChannels;
+    int outSamplerate = outSrcDesc.sampleRate;
     while ((avail = pts->available()) >= 0) {
         if (debug > 1) {
             if (isFinal) {
@@ -987,14 +993,14 @@ Stretcher::RetrieveAvailableData(size_t *pCountOut, bool isFinal) {
         //        this behavior IS NOT ideal if using audio device retrieves input signals realtime.
         if (sndfileIn && writable < outBufSize / 2) {
             // if available buffer less than 50%, wait a latency = 1000(ms) * ch * frame / sample rate
-            usleep(1000000.f * outChannels * defBlockSize / outputSampleRate);
+            usleep(1000000.f * outChannels * defBlockSize / outSamplerate);
         }
         {
             std::lock_guard<std::mutex> lock(outMutex);
 
             writable = outBuffer->getWriteSpace();
             if (outChannels * blockSize < writable) {
-                outBuffer->write(obuf, outChannels* blockSize);
+                outBuffer->write(obuf, outChannels * blockSize);
             }
             if (debugBuffer && time(nullptr) - debugTimestampOut >= 2) { // print out internal n seconds
                 debugTimestampOut = time(nullptr);
@@ -1101,7 +1107,7 @@ Stretcher::inputAudioCallback(
     Stretcher *pst = (Stretcher *)data;
 
     float *in = (float*)inBuffer;
-    int channels = pst->inputChannels;
+    int channels = pst->inSrcDesc.inputChannels;
     // TODO: may quick check levels to drop frames prevent too many input can't process immediately
     {
         std::lock_guard<std::mutex> lock(pst->inMutex); // automatically unlock when exit the code scope
@@ -1138,7 +1144,7 @@ Stretcher::outputAudioCallback(
 
     //float *in = (float*)inBuffer;
     float *out = (float*)outBuffer;
-    int channels = pst->outputChannels;
+    int channels = pst->outSrcDesc.outputChannels;
     {
         std::lock_guard<std::mutex> lock(pst->outMutex); // automatically unlock when exit the code scope
 
@@ -1201,12 +1207,17 @@ Stretcher::SetInputStream(int index, int *pSampleRate, int *pChannels) {
     );
     cerr << "Open input stream result " << er << endl;
 
-    // NOTE: overwrite to file input
-    Stretcher::inputSampleRate = inInfo->defaultSampleRate;
-    if (Stretcher::inputChannels != inInfo->maxInputChannels) {
-        PrepareInputBuffer(inInfo->maxInputChannels, defBlockSize, reserveBuffer);
-        Stretcher::inputChannels = inInfo->maxInputChannels;
+    if (inInfo->maxInputChannels != inSrcDesc.inputChannels) {
+        PrepareInputBuffer(inInfo->maxInputChannels, defBlockSize, reserveBuffer, inSrcDesc.inputChannels);
     }
+    inSrcDesc = {
+        SourceType::AudioDevice,
+        index,
+        std::string(inInfo->name),
+        inInfo->maxInputChannels,
+        inInfo->maxOutputChannels,
+        static_cast<int>(inInfo->defaultSampleRate)
+    };
 
     if (pSampleRate) *pSampleRate = inInfo->defaultSampleRate;
     if (pChannels) *pChannels = inInfo->maxInputChannels;
@@ -1251,12 +1262,17 @@ Stretcher::SetOutputStream(int index) {
     );
     cerr << "Open output stream result " << er << endl;
 
-    // NOTE: overwtie to file output
-    Stretcher::outputSampleRate = outInfo->defaultSampleRate;
-    if (Stretcher::outputChannels != outInfo->maxOutputChannels) {
+    if (outInfo->maxOutputChannels != outSrcDesc.outputChannels) {
         PrepareOutputBuffer(outInfo->maxOutputChannels, defBlockSize, reserveBuffer);
-        Stretcher::outputChannels = outInfo->maxOutputChannels;
     }
+    outSrcDesc = {
+        SourceType::AudioDevice,
+        index,
+        std::string(outInfo->name),
+        outInfo->maxInputChannels,
+        outInfo->maxOutputChannels,
+        static_cast<int>(outInfo->defaultSampleRate)
+    };
 
     return er == paNoError;
 }
