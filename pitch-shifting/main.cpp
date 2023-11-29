@@ -263,7 +263,7 @@ bool setAudioSource(PitchShifting::Parameters& param, PitchShifting::Stretcher* 
     case SourceType::AudioFile:
         result = sther->LoadInputFile(param.inFilePath, &sampleRate, &channels, &format, &inputFrames, param.timeratio, param.duration);
         if (param.debug > 2) {
-            cerr << "DEBUG: load audio file format: " << format << ", ext format: " << sther->GetFileFormat(param.inFileExt) << endl;
+            cerr << "Load audio file format: " << format << ", ext format: " << sther->GetFileFormat(param.inFileExt) << endl;
         }
         break;
     case SourceType::AudioDevice:
@@ -337,12 +337,10 @@ void processAudio(PitchShifting::Stretcher* sther, PitchShifting::Parameters* pa
         sther->FormantScale(formantScale);
         sther->SetIgnoreClipping(param->ignoreClipping);
 
-        //sther->StartInputStream(); //DEBUG: move out of thread
-        //sther->StartOutputStream();
-
-        if (!param->realtime) {
-            sther->StudyInputSound(); // only works on input data source is file
-        }
+        // NOTE: study input sound here is now meaningless which, will not process twice with first run studying
+        //if (!param->realtime) {
+        //    sther->StudyInputSound(); // only works on input data source is file
+        //}
 
         int frame = 0;
         int percent = 0;
@@ -361,20 +359,18 @@ void processAudio(PitchShifting::Stretcher* sther, PitchShifting::Parameters* pa
         toDrop = sther->ProcessStartPad();
         sther->SetDropFrames(toDrop);
 
-        bool reading = true;
-        //TODO: check here for realtime via portaudio
+        bool reading = true; // original offical sample is using isFinal, but reading is much fit to modified behavior
         while (reading) {
 
             thisBlockSize = defBlockSize;
             sther->ApplyFreqMap(sther->inputCount, &thisBlockSize);
 
-            // TODO: given block size parameter if frequency map is enabled
-            // TODO: change input function to device instead of file
+            // frame number is actual given rubberband stretcher input frames, 
+            // input count is read frames from input source
             bool isFinal = sther->ProcessInputSound(&frame, &sther->inputCount);
 
-            // TODO: may check result if clipping occurred to successful variable
+            // retrieve processed data to out buffer and result if clipping occurred as successful variable
             successful = sther->RetrieveAvailableData(&sther->outputCount, isFinal);
-            //if (!successful) break;
 
             if (frame == 0 && !param->realtime && !param->quiet) {
                 cerr << "Pass 2: Processing..." << endl;
@@ -393,8 +389,11 @@ void processAudio(PitchShifting::Stretcher* sther, PitchShifting::Parameters* pa
 
             // exit while loop if all input frames are processed
             if (frame >= inputFrames && inputFrames > 0) {
-                cerr << "=== End reading inputs ===" << endl;
-                // TODO: original design is frame + blockSize >= total input frames (forget why)
+                cerr << "=== End reading inputs f:" << frame << " c:" << sther->inputCount << " ===" << endl;
+                // normally frame == inputCount if given audio file as input
+                //if (sther->inSrcDesc.type == SourceType::AudioFile) {
+                //    assert(frame, sther->inputCount);
+                //}
                 reading = false;
             }
             // peaceful leaving while loop if user press any key to cancel
@@ -410,23 +409,23 @@ void processAudio(PitchShifting::Stretcher* sther, PitchShifting::Parameters* pa
             }
         } // while (reading)
 
+        // NOTE: refer to stretcher::outGain, apply in realtime instead of restart from begin
         if (!successful) {
             cerr << "WARNING: found clipping during process, decrease gain and process from begin again.." << endl;
-            cerr << "         but I want to ignore this for realtime process.." << endl;
-            if (!param->realtime) {
-                // TODO: new functions to reopen or seek 0 to input/output files for
-                //       re-entering while (!successful) loop
-                //continue;
+            cerr << "         but it is not concern to use audio device realtime applying adjustments" << endl;
+            // original rubberband offical example design is reset file seek to 0 and restart whole process with lower output gain
+            if (!param->realtime && sther->inSrcDesc.type == SourceType::AudioFile) {
+                // reset file seek position and restart from begin
             }
-            successful = true; // ignore clipping
+            successful = true; // ignored, no further manipulation
         }
 
         if (!param->quiet) {
             cerr << "\r    " << endl;
         }
 
-        // NOTE: get availble processed blocks from modified gain and clipping
-        //       after nothing can read from input raised final=true until successful=true
+        // NOTE: get rest of availble processed blocks from stretcher
+        //       based on current reading input design, this behavior may redundant
         sther->RetrieveAvailableData(&sther->outputCount);
 
     } // while (successful)
@@ -559,7 +558,7 @@ int main(int argc, char **argv)
     // assign total frames count to stretcher after audio source accepted
     sther->totalFramesCount = inputFrames;
 
-    //DEBUG: section for GUI initialization before stretcher creation(after ctor, but before rubber band configuration)
+    // section for GUI initialization before stretcher creation(after ctor, but before rubberband configuration)
     if (param.gui) {
         // set audio information to GUI plot, given inFrame must afterward sther->SetInputStream for buffer initialization
         inWaveform->SetAudioInfo(sampleRate, channels, sther->inFrame, defBlockSize * channels);

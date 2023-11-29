@@ -1,13 +1,25 @@
 # Hmm #
 
-if i can build my own pitch shifting and formant adjustment software likes koigoe
+if i can build my own real-time pitch shifting and formant adjustment app, likes koigoe?
+
+currently:
+- only support r3 engine `--fine`, 
+- the beahviors of realtime and ignore clipping were modified for my own usage
+- formant option with semitones adjustment, eg:`--formant 4`
+- add list device option shows available audio devices, eg:`--list-device`
+- add input gain db option for my poor input device, eg:`--input-gain 4`
+- add gui option with opengl window via imgui, eg:`--gui`
 
 # TD-PSOLA #
 
-https://courses.engr.illinois.edu/ece420/sp2023/lab5/lab/#overlap-add-algorithm
+~~https://courses.engr.illinois.edu/ece420/sp2023/lab5/lab/#overlap-add-algorithm~~
+
+these courses really helped my coarse understanding about how it works, but seems unvisible now,
+
+just googling overlap add algorithm and fft convolution, or ask chat gpt?
 
 
-# impl #
+# impl refs #
 
 Rubberband: 
 https://github.com/breakfastquay/rubberband
@@ -26,9 +38,13 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
 # audio-processing.sln for windows env #
 
 - NOTE: windows is not ideal dev env for rubberband project... lots of env pre-setting
-- git pull rubberband into parent of this repo folder
+- git pull rubberband into parent of this repo folder, using meson and ninja to compile rubberband library
+  - refer to build_rubberband_cl_x64.bat
 - sndfile release files into this repo folder
   - https://github.com/libsndfile/libsndfile/releases
+- glfw env for imgui for gui function
+  - i've forgot the details, just copy-paste needs from my another repo
+  - https://github.com/sharowyeh/glfw-sample
 - murmur... hate to build dev env
 ```
 -- formant-pitch-playground
@@ -190,8 +206,10 @@ Can use vcpkg+msvc or cygwin to install/compile unix-like dependencies, and pass
   - https://github.com/mesonbuild/meson/issues/3500#issuecomment-1236378795
 - install fftw, libsamplerate, etc via vcpkg
 - run meson build command by msvc cross tools command prompt(current use vs2022)
-- `meson setup build --wipe -Dprefix=C:\path\to\cwd -Dpkg_config_path=C:\path\to\vcpkg\installed\x64-windows\lib\pkgconfig -Dextra_include_dirs=C:\path\to\vcpkg\installed\x64-windows\include -Dextra_lib_dirs=C:\path\to\vcpkg\installed\x64-windows\lib`
-- `-Dfft=fftw -Dresampler=libsamplerate`
+```
+> meson setup build --wipe -Dprefix=C:\path\to\cwd -Dpkg_config_path=C:\path\to\vcpkg\installed\x64-windows\lib\pkgconfig -Dextra_include_dirs=C:\path\to\vcpkg\installed\x64-windows\include -Dextra_lib_dirs=C:\path\to\vcpkg\installed\x64-windows\lib -Dfft=fftw -Dresampler=libsamplerate
+```
+  - refer to build_rubberband_cl_x64.bat
 - meson.build has been set NOMINMAX to ignore windows.h default min/max macro, so need stl lib for min/max(i choose rubberband\RubberBandStretcher.h)
   ```
   #ifdef _MSC_VER
@@ -226,6 +244,8 @@ try to use cygwin instead...
 
 # Mac M1 version #
 - refer to .vscode folder
+- gui function:
+  -glfw/osx opengl framework: TODO, not ready, need update compiler options
 - for rubberband functions, fetch github source code on parent folder for its profiler namespace(for logger or something)
 - but still using homebrew installed rubberband libraries for compiling linker
 - brew install: rubberband, libsndfile, portaudio
