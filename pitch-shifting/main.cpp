@@ -617,18 +617,25 @@ int main(int argc, char **argv)
         processAudio(stherPtr, paramPtr);
         }, sther, &param);
     stherThread = new std::thread(bound);
-    stherThread->detach();
 
-    // keep GUI rendering to display charts
-    while (uiPrepareFrame() == 0) {
-    }
-    uiTerminate(uiCallbackFnMap);
-    if (uiWindowState == FnWindowStates::DESTROYED) {
-        sther->stop = true;
-        while (sther->stopped == false) {
-            usleep(10000);
-        }
-    }
+	if (param.gui) {
+		// aware of thread interprocess
+		stherThread->detach();
+
+		// keep GUI rendering to display charts
+		while (uiPrepareFrame() == 0) {
+		}
+		uiTerminate(uiCallbackFnMap);
+		if (uiWindowState == FnWindowStates::DESTROYED) {
+			sther->stop = true;
+			while (sther->stopped == false) {
+				usleep(10000);
+			}
+		}
+	}
+	else {
+		stherThread->join();
+	}
 
     sther->CloseInputFile();
     sther->CloseOutputFile();
