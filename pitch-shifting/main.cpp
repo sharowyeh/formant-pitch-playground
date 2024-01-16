@@ -327,6 +327,7 @@ void processAudio(PitchShifting::Stretcher* sther, PitchShifting::Parameters* pa
 
         /* DEBUG: playground with channel data */
         if (param->gui) {
+            // TODO: macOS gcc just cannot allow to use shared ptr like this way
             mapDataPtrToGuiPlot(sther);
         }
 
@@ -345,7 +346,8 @@ void processAudio(PitchShifting::Stretcher* sther, PitchShifting::Parameters* pa
         int frame = 0;
         int percent = 0;
 
-        sther->SetKeyFrameMap();
+        // macOS need to recompiling rubberbandstretcher for setKeyFrameMap()
+        //sther->SetKeyFrameMap();
 
         // reset counters
         sther->inputCount = 0;

@@ -76,7 +76,8 @@ public:
         int typethreading, int typetransient, int typedetector, int crispness = -1);
     // so far im not using time map...
     bool LoadTimeMap(std::string mapFile);
-    void SetKeyFrameMap() { if (pts && timeMap.size() > 0) pts->setKeyFrameMap(timeMap); };
+    // TODO: cannot find reference in macOS rubberbandstretcher
+    //void SetKeyFrameMap() { if (pts && timeMap.size() > 0) pts->setKeyFrameMap(timeMap); };
     // redo or before set options to correct given parameters for rubberband
     bool LoadFreqMap(std::string mapFile, bool pitchToFreq);
     // clipping check during process frame

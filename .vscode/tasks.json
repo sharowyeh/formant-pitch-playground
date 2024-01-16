@@ -2,14 +2,14 @@
     "tasks": [
         {
             "type": "cppbuild",
-            "label": "C/C++: clang++ build active file",
+            "label": "C/C++: clang++ build active file (console only)",
             "command": "/usr/bin/clang++",
             "args": [
                 "-fcolor-diagnostics",
                 "-fansi-escape-codes",
                 "-std=c++17",
                 "-stdlib=libc++",
-                "-g", // set for include debugging info
+                "-g",
                 "${file}",
                 "${fileDirname}/stretcher.cpp",
                 "-o",
@@ -17,13 +17,13 @@
                 "-I${fileDirname}",
                 "-I${workspaceFolder}/../rubberband",
                 "-I/opt/homebrew/include",
-                "-L${workspaceFolder}/../rubberband/build", // set for using own built binaries
+                "-L${workspaceFolder}/../rubberband/build",
                 "-L/opt/homebrew/lib",
                 "-lportaudio",
                 "-lrubberband",
                 "-lsndfile",
-                "-lncurses", // for terminal user input
-                "-Wl,-rpath,@executable_path", // for own built dylib with @rpath
+                "-lncurses",
+                "-Wl,-rpath,@executable_path"
             ],
             "options": {
                 "cwd": "${fileDirname}"
@@ -31,10 +31,7 @@
             "problemMatcher": [
                 "$gcc"
             ],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
+            "group": "build",
             "dependsOn": [
                 "copy own built dylib from rubberband"
             ],
@@ -48,11 +45,51 @@
                 "${workspaceFolder}/../rubberband/build/*.dylib",
                 "${fileDirname}"
             ],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
+            "group": "build",
             "detail": "Rubberband dylib is built with @rpath and dont want to change too many things"
+        },
+        {
+            "type": "cppbuild",
+            "label": "C/C++: brew g++ build all cpp",
+            "command": "/opt/homebrew/bin/g++-13",
+            "args": [
+                "-fdiagnostics-color=always",
+                //"-I${fileDirname}", // just use specify name instead of selected file
+                "-I${workspaceFolder}/pitch-shifting",
+                "-I${workspaceFolder}/../rubberband",
+                "-I/opt/homebrew/include",
+                "-L${workspaceFolder}/../rubberband/build",
+                "-L/opt/homebrew/lib",
+                "-lportaudio",
+                "-lrubberband",
+                "-lsndfile",
+                "-lncurses",
+                "-I${workspaceFolder}/imgui",
+                "-lglfw",
+                "-L/opt/homebrew/Cellar/glew/2.2.0_1/lib",
+                "-lGLEW",
+                "-framework",
+                "OpenGL",
+                "-g",
+                "${workspaceFolder}/pitch-shifting/*.cpp",
+                "${workspaceFolder}/imgui/*.cpp",
+                "-o",
+                //"${fileDirname}/${fileBasenameNoExtension}.out",
+                "${workspaceFolder}/pitch-shifting/main.out",
+                "-Wl,-rpath,@executable_path"
+            ],
+            "options": {
+                //"cwd": "${fileDirname}"
+                "cwd": "${workspaceFolder}/pitch-shifting"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": "build",
+            "dependsOn": [
+                "copy own built dylib from rubberband"
+            ],
+            "detail": "Config by own is better than auto-generated from vscode debugger..."
         }
     ],
     "version": "2.0.0"

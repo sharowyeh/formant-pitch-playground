@@ -5,26 +5,28 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug",
+            "name": "brew g++ debug",
             "type": "cppdbg",
             "request": "launch",
             "targetArchitecture": "arm64",
-            "program": "${fileDirname}/${fileBasenameNoExtension}.out",
+            //"program": "${fileDirname}/${fileBasenameNoExtension}.out",
+            "program": "${workspaceFolder}/pitch-shifting/main.out",
             "args": [
                 "--pitch=9",
                 "--fine",
-                "--formant",
+                "--formant=4",
                 "--realtime",
                 "--smoothing",
-                "--ignore-clipping"
+                "--ignore-clipping",
+                "--gui"
             ],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/pitch-shifting", // ensure correct cwd to load font file
             "environment": [],
             "externalConsole": false, // set for ncurses to get user input from console
             "MIMode": "lldb",
             "miDebuggerArgs": "--arch=arm64",
-            "preLaunchTask": "C/C++: clang++ build active file"
+            "preLaunchTask": "C/C++: brew g++ build all cpp"
         },
     ]
 }

@@ -55,7 +55,7 @@ namespace GLUI {
 		std::map<ScaleData, AmplitudeBuffer> plotBuffers;
 
 		/* overload for map iteration */
-		void UpdatePlot(const ScaleData& data, AmplitudeBuffer& plotBuffer);
+		void UpdatePlotWith(const ScaleData& data, AmplitudeBuffer& plotBuffer);
 	};
 
 } // namespace GLUI

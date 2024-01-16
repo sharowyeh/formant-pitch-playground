@@ -94,7 +94,10 @@ int Stretcher::GetFormantFFTSize()
 {
     auto data = pts->getChannelData(0);
     auto cd = *static_cast<std::shared_ptr<RubberBand::R3Stretcher::ChannelData>*>(data);
-    return cd->formant->fftSize;
+    auto formant = cd->formant.get();
+    if (!formant)
+        return 0;
+    return formant->fftSize;
 }
 
 void* Stretcher::GetFormantData(FormantDataType type, int channel, int* fftSize, double** dataPtr, int* bufSize)

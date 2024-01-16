@@ -144,10 +144,10 @@ void GLUI::CtrlForm::RefreshSourceList() {
 bool world_check = false;
 
 // not work
-ImGuiKey& operator++(ImGuiKey& key) {
-	int num = static_cast<int>(key);
-	return key = static_cast<ImGuiKey>(++num);
-}
+// ImGuiKey& operator++(ImGuiKey& key) {
+// 	int num = static_cast<int>(key);
+// 	return key = static_cast<ImGuiKey>(++num);
+// }
 
 void GLUI::CtrlForm::Render()
 {

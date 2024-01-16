@@ -36,7 +36,7 @@ void GLUI::ScalePlot::SetPlotInfo(int type, int ch, int fftsize, double* dataptr
 	SetPlotInfo(label.c_str(), type, ch, fftsize, dataptr, size);
 }
 
-void GLUI::ScalePlot::UpdatePlot(const ScaleData& data, AmplitudeBuffer& plotBuffer)
+void GLUI::ScalePlot::UpdatePlotWith(const ScaleData& data, AmplitudeBuffer& plotBuffer)
 {
 	auto bufSize = data.bufSize;
 	auto dataPtr = data.dataPtr;
@@ -90,7 +90,7 @@ void GLUI::ScalePlot::UpdatePlot()
 		ImPlot::SetupAxesLimits(0 - bufSize / 4, bufSize / 8 * 9, -IM_PI, IM_PI);
 		
 		for (auto it = plotBuffers.begin(); it != plotBuffers.end(); it++) {
-			UpdatePlot(it->first, it->second);
+			UpdatePlotWith(it->first, it->second);
 		}
 		
 		ImPlot::EndPlot();
