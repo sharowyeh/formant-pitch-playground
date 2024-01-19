@@ -87,9 +87,14 @@ int Parameters::ParseOptions(int c, char** v)
             { 0, 0, 0, 0 }
         };
 
+        // NOTE: Better use `=` for option-argument pairs, mainly to identify empty argument if required,
+        //   whitespace separation can cause misinterpretations and unexpected behavior when an empty argument is intended.
+        //   Or enclose arguments with spaces in double quotes. (e.g., --pitch "9.0")
+        //   In shorten options on Windows environment, argument will include the concat letter. (e.g., =9.0)
+        //   Aware of removing redundant letter before parsing the argument.
         int optionChar = getopt_long(argc, argv,
-            "t:p:d:RLPFc:f:T:D:qhHVM:23",
-            longOpts, &optionIndex);
+            "t:p:d:RLPF:c:f:T:D:qhHVM:23g:",  // assign for shorten option, and allows to parse following optarg value,
+            longOpts, &optionIndex);          // eg. `F:` allows `-F 4.0` the same with `--formant 4.0`
         if (optionChar == -1) break;
 
 #ifdef __APPLE_CC__
