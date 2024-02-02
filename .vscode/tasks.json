@@ -32,7 +32,7 @@
                 "-lsndfile",
                 "-lncurses", // for terminal user input
 				"-I${workspaceFolder}/imgui",
-				"-lglfw",
+				"-lglfw", // NOTE: opengl was obsoleted in macOS, that clang cannot use the framework
 				"-L/opt/homebrew/Cellar/glew/2.2.0_1/lib", // dont know why no symbolic
 				"-lGLEW",
 				"-framework",
@@ -59,7 +59,7 @@
             "command": "cp",
             "args": [
                 "${workspaceFolder}/../rubberband/build/*.dylib",
-                "${fileDirname}"
+                "${workspaceFolder}/pitch-shifting"
             ],
             "group": "build",
             "detail": "Rubberband dylib is built with @rpath and dont want to change too many things"

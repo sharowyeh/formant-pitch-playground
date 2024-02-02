@@ -339,7 +339,9 @@ void processAudio(PitchShifting::Stretcher* sther, PitchShifting::Parameters* pa
         /* DEBUG: playground with channel data */
         if (param->gui) {
             // TODO: macOS gcc just cannot allow to use shared ptr like this way
+#ifndef __APPLE__
             mapDataPtrToGuiPlot(sther);
+#endif
         }
 
         if (param->inAudioType == SourceType::AudioFile) {
