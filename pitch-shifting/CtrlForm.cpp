@@ -4,6 +4,9 @@
 #include <vector>
 
 using std::vector;
+// NOTE: if want to refresh audio sources or files in form GUI, considering:
+//       - raise GUI event to main for user interactions, let main re-apply the new source desc list
+//       - assign sther ptr from main, update the source desc list own
 using PitchShifting::SourceDesc;
 
 vector<int> stre;
@@ -112,6 +115,32 @@ void GLUI::CtrlForm::GetAudioAdjustment(double* pitch, double* formant, double* 
 
 }
 
+PitchShifting::Stretcher* sther = nullptr;
+vector<SourceDesc> anySrc;
+
+void GLUI::CtrlForm::SetStretcher(PitchShifting::Stretcher* stherPtr) {
+	sther = stherPtr;
+}
+
+void GLUI::CtrlForm::RefreshSourceList() {
+	if (!sther) return;
+
+	// so far ignore device list update
+	//sther->ListAudioDevices(anySrc);
+	//SetAudioDeviceList(anySrc, inSrcIndex, outSrcIndex);
+
+	// get current selection
+	char* inFile = nullptr;
+	if (inFileIndex != -1 && inFileIndex < inFileList.size()) {
+		auto len = inFileList[inFileIndex].desc.length() + 1;
+		inFile = (char*)malloc(len);
+		memcpy_s(inFile, len, inFileList[inFileIndex].desc.c_str(), len);
+	}
+	sther->ListLocalFiles(anySrc);
+	SetAudioFileList(anySrc, inFile, nullptr);
+}
+
+
 bool world_check = false;
 
 // not work
@@ -182,6 +211,8 @@ void GLUI::CtrlForm::Render()
 		preview = FormData.InputSource.desc.c_str();
 	}
 	if (ImGui::BeginCombo("Input File", preview)) {
+		// refresh list when open combobox
+		RefreshSourceList();
 		for (int i = 0; i < inFileList.size(); i++) {
 			const bool isSelected = (inFileIndex == i);
 			if (ImGui::Selectable(inFileList[i].desc.c_str(), inFileIndex)) {

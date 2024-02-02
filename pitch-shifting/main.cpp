@@ -487,6 +487,8 @@ int main(int argc, char **argv)
             (param.inAudioType == SourceType::AudioFile ? param.inAudioParam : nullptr),
             (param.outAudioType == SourceType::AudioFile ? param.outAudioParam : nullptr));
         ctrlForm->SetAudioAdjustment(param.pitchshift, param.formantshift, param.inputgaindb);
+        // for further refresh audio source list
+        ctrlForm->SetStretcher(sther);
     }
     
     if (checkAudio == false && param.gui == false) {

@@ -441,7 +441,14 @@ Stretcher::ListLocalFiles(std::vector<SourceDesc>& files) {
             continue;
         
         memset(&sfinfo, 0, sizeof(SF_INFO));
-        
+        // TODO: check unicode file names, use sf_wchar_open
+        try {
+            auto path = entry.path().string();
+        }
+        catch (std::exception& e) {
+            // TODO: exception occurred if path contains unicode, use entry.path().wstring() instead, so far just ignore it
+            continue;
+        }
         auto sf = sf_open(entry.path().string().c_str(), SFM_READ, &sfinfo);
         if (!sf) continue;
         if (sfinfo.samplerate == 0) {

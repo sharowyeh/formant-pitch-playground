@@ -52,6 +52,9 @@ public:
 
 	void(*OnButtonClicked)(void* inst, ButtonEventArgs param) = nullptr;
 
+	void SetStretcher(PitchShifting::Stretcher* sther);
+	void RefreshSourceList();
+
 	void SetAudioDeviceList(std::vector<PitchShifting::SourceDesc>& devices, int defInDevIndex = -1, int defOutDevIndex = -1);
 	/* TODO: sofar useless, should define event args from UI control event callbacks */
 	void GetAudioSources(int* inDevIndex, int* outDevIndex);
