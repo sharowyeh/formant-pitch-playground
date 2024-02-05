@@ -51,6 +51,9 @@ using std::endl;
 
 // for copy_if to select GUI ease of use datasets
 #include <algorithm>
+
+// NOTE: about the glfwnative support in macOS, using latest imgui version will cause compile error
+//   from imgui_impl_glfw.cpp includes <GLFW/glfw3native.h> for glfwGetCocoaWindow()
 // for opengl gui
 #include "Window.hpp"
 #include "CtrlForm.h"

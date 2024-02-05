@@ -26,17 +26,18 @@
                 "-I/opt/homebrew/include",
                 "-L${workspaceFolder}/../rubberband/build",
                 "-L/opt/homebrew/lib",
-                "-L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib",
+                "-L/opt/homebrew/Cellar/glfw/3.3.8/lib", // try the opengl 3rd party lib from homebrew?
+				"-lglfw",
+				"-L/opt/homebrew/Cellar/glew/2.2.0_1/lib", // try the opengl 3rd party lib from homebrew?
+				"-lGLEW",
+                "-L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib", // seems for libclang?
                 "-lportaudio",
                 "-lrubberband",
                 "-lsndfile",
                 "-lncurses", // for terminal user input
 				"-I${workspaceFolder}/imgui",
-				"-lglfw", // NOTE: opengl was obsoleted in macOS, that clang cannot use the framework
-				"-L/opt/homebrew/Cellar/glew/2.2.0_1/lib", // dont know why no symbolic
-				"-lGLEW",
 				"-framework",
-				"OpenGL",
+				"OpenGL", // NOTE: opengl native support was obsoleted in macOS, may need homebrew by libopengl?
                 "-o",
                 "${fileDirname}/${fileBasenameNoExtension}.out",
                 "-Wl,-rpath,@executable_path", // for own built dylib with @rpath
@@ -66,13 +67,14 @@
         },
         {
             "type": "cppbuild",
-            "label": "C/C++: brew g++ build all cpp",
+            "label": "C/C++: brew g++ build all cpp (painful opengl conflicts)",
             "command": "/opt/homebrew/bin/g++-13",
             "args": [
                 "-fdiagnostics-color=always",
                 //"-I${fileDirname}", // just use specify name instead of selected file
                 "-I${workspaceFolder}/pitch-shifting",
                 "-I${workspaceFolder}/../rubberband",
+				"-I${workspaceFolder}/imgui",
                 "-I/opt/homebrew/include",
                 "-L${workspaceFolder}/../rubberband/build",
                 "-L/opt/homebrew/lib",
@@ -81,6 +83,7 @@
                 "-lsndfile",
                 "-lncurses",
                 "-I${workspaceFolder}/imgui",
+                "-L/opt/homebrew/Cellar/glfw/3.3.8/lib",
                 "-lglfw",
                 "-L/opt/homebrew/Cellar/glew/2.2.0_1/lib",
                 "-lGLEW",
@@ -96,7 +99,7 @@
             ],
             "options": {
                 //"cwd": "${fileDirname}"
-                "cwd": "${workspaceFolder}/pitch-shifting"
+                "cwd": "${workspaceFolder}/pitch-shifting",
             },
             "problemMatcher": [
                 "$gcc"

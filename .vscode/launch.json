@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "brew g++ debug",
+            "name": "brew g++ debug (expr)",
             "type": "cppdbg",
             "request": "launch",
             "targetArchitecture": "arm64",
@@ -28,7 +28,7 @@
             "externalConsole": false, // set for ncurses to get user input from console
             "MIMode": "lldb",
             "miDebuggerArgs": "--arch=arm64",
-            "preLaunchTask": "C/C++: brew g++ build all cpp"
+            "preLaunchTask": "C/C++: brew g++ build all cpp (painful opengl conflicts)"
         },
     ]
 }
