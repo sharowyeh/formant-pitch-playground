@@ -67,7 +67,7 @@
         },
         {
             "type": "cppbuild",
-            "label": "C/C++: brew g++ build all cpp (painful opengl conflicts)",
+            "label": "C/C++: brew g++ build all cpp (need to remove comment)",
             "command": "/opt/homebrew/bin/g++-13",
             "args": [
                 "-fdiagnostics-color=always",

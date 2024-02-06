@@ -5,6 +5,25 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "debug coded lldb",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/pitch-shifting/main.out",
+            "args": [
+                "--pitch=9",
+                "--fine",
+                "--formant=4",
+                "--realtime",
+                "--smoothing",
+                "--ignore-clipping",
+                //"--gui",
+                "2", // input dev index
+                "1" // output dev index
+            ],
+            "cwd": "${workspaceFolder}/pitch-shifting",
+            "preLaunchTask": "C/C++: brew g++ build all cpp (need to remove comment)"
+        },
+        {
             "name": "brew g++ debug (expr)",
             "type": "cppdbg",
             "request": "launch",
@@ -28,7 +47,7 @@
             "externalConsole": false, // set for ncurses to get user input from console
             "MIMode": "lldb",
             "miDebuggerArgs": "--arch=arm64",
-            "preLaunchTask": "C/C++: brew g++ build all cpp (painful opengl conflicts)"
+            "preLaunchTask": "C/C++: brew g++ build all cpp (need to remove comment)"
         },
     ]
 }
