@@ -166,7 +166,6 @@
     <ClCompile Include="ScalePlot.cpp" />
     <ClCompile Include="TimeoutPopup.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="pitch-shifting.cpp" />
     <ClCompile Include="stretcher.cpp" />
     <ClCompile Include="Waveform.cpp" />
     <ClCompile Include="Window.cpp" />
