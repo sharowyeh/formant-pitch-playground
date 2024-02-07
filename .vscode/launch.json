@@ -16,7 +16,7 @@
                 "--realtime",
                 "--smoothing",
                 "--ignore-clipping",
-                //"--gui",
+                "--gui",
                 "2", // input dev index
                 "1" // output dev index
             ],

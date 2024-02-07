@@ -3,12 +3,18 @@
 // to get to know further rubberband source code details, wonder to participate with 
 // rubberband-library visual studio project, but still has more glitch than meson build
 // (should be the compiler options issue...)
+#ifdef _WIN32
 #if NDEBUG
 // build by meson
 #pragma comment(lib, "rubberband.lib")
 #else
 // build by visual studio project
 #pragma comment(lib, "rubberband-library.lib")
+#endif
+#else
+// unix-like for .a .o or .dylib
+#pragma comment(lib, "librubberband.a")
+#pragma comment(lib, "librubberband_objlib.a")
 #endif
 
 // for cross-platform using std::min/max on rubberband source code, consistent from stl instead of windows marco
@@ -161,9 +167,12 @@ public:
     float* inFrame;
     float* outFrame;
 
-    //DEBUG: try pointer of std::vector<std::shared_ptr<R3Stretcher::ChannelData>>
-    void* GetChannelData();
-    
+    //DEBUG: try pointer of std::shared_ptr<R3Stretcher::ChannelData>
+    RubberBand::R3Stretcher::ChannelData* GetChannelData();
+
+    //DEBUG: ensure rubberband library is compiled correctly
+    std::string GetLibraryVersion();
+
     /* for getting formant data */
     enum FormantDataType : int {
         Cepstra, // fft size
@@ -171,7 +180,7 @@ public:
         Spare // buf size
     };
     int GetFormantFFTSize();
-    void* GetFormantData(FormantDataType type, int channel, int* fftSize, double** dataPtr, int* bufSize);
+    RubberBand::R3Stretcher::FormantData* GetFormantData(FormantDataType type, int channel, int* fftSize, double** dataPtr, int* bufSize);
     
     /* for getting scale data */
     enum ScaleDataType : int {

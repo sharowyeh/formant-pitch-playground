@@ -233,7 +233,8 @@ void setGLWindow(PitchShifting::Parameters* param)
 
 /* associate data pointer between rubberband stretcher data and GUI data present source */
 void mapDataPtrToGuiPlot(PitchShifting::Stretcher* sther) {
-
+    auto version = sther->GetLibraryVersion();
+    printf("rubberband version:%s\n", version.c_str());
     auto ptr_of_shared_ptr = sther->GetChannelData();
     auto formantFFTSize = sther->GetFormantFFTSize();
     auto scaleSizes = sther->GetChannelScaleSizes(0);
@@ -342,7 +343,7 @@ void processAudio(PitchShifting::Stretcher* sther, PitchShifting::Parameters* pa
         /* DEBUG: playground with channel data */
         if (param->gui) {
             // TODO: macOS gcc just cannot allow to use shared ptr like this way
-#ifndef __APPLE__
+#ifdef __APPLE__
             mapDataPtrToGuiPlot(sther);
 #endif
         }
@@ -633,6 +634,10 @@ int main(int argc, char **argv)
     (void)gettimeofday(&tv, 0);
     
     setWaitKey('q'); // set wait key for user interrupts process loop (mainly to cancel audio stream realtime works)
+
+    // before create rubberband stretcher, pitch/formant/time ratio, sample rate and channels must be assigned
+    //sther->Create();
+    //mapDataPtrToGuiPlot(sther);
 
     sther->StartInputStream();
     sther->StartOutputStream();
