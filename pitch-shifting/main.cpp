@@ -253,22 +253,23 @@ void mapDataPtrToGuiPlot(PitchShifting::Stretcher* sther) {
     formantChart->SetPlotInfo("Spare", 3, 0, formantFFTSize, dataPtr, bufSize);
     int fftSize = formantFFTSize; // scale data just using formant fft size 2048
     //int fftSize = pow(2, (i + 10)); // 1024, 2048, 4096
+    //int bufSize = fftSize / 2 + 1; // 513, 1025, 2049 (bin size)
     sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Real, 0, fftSize, &dataPtr, &bufSize); /* resolution 100 */
     scaleChart->SetPlotInfo("Real", 1, 0, fftSize, dataPtr, bufSize);
     sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Imaginary, 0, fftSize, &dataPtr, &bufSize);
     scaleChart->SetPlotInfo("Imag", 2, 0, fftSize, dataPtr, bufSize);
-    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Magnitude, 0, fftSize, &dataPtr, &bufSize); /* resolution 0.1 */
-    scaleChart->SetPlotInfo("Mag", 3, 0, fftSize, dataPtr, bufSize);
+    //sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Magnitude, 0, fftSize, &dataPtr, &bufSize); /* resolution 0.1 */
+    //scaleChart->SetPlotInfo("Mag", 3, 0, fftSize, dataPtr, bufSize);
     sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PreviousMagnitude, 0, fftSize, &dataPtr, &bufSize);
-    scaleChart->SetPlotInfo("PrevMag", 6, 0, fftSize, dataPtr, bufSize);
-    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Phase, 0, fftSize, &dataPtr, &bufSize); /* resolution pi */
-    scaleChart->SetPlotInfo("Phase", 4, 0, fftSize, dataPtr, bufSize);
-    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::AdvancedPhase, 0, fftSize, &dataPtr, &bufSize);
-    scaleChart->SetPlotInfo("AdPhase", 5, 0, fftSize, dataPtr, bufSize);
-    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PendingKick, 0, fftSize, &dataPtr, &bufSize); /* so far zero values */
-    scaleChart->SetPlotInfo("Kick", 7, 0, fftSize, dataPtr, bufSize);
-    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Accumulator, 0, fftSize, &dataPtr, &bufSize); /* resolution 0.1 */
-    scaleChart->SetPlotInfo("Accu", 8, 0, fftSize, dataPtr, bufSize);
+    scaleChart->SetPlotInfo("PrevMag", 6, 0, fftSize, dataPtr, bufSize, 1000.f);
+    //sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Phase, 0, fftSize, &dataPtr, &bufSize); /* resolution pi */
+    //scaleChart->SetPlotInfo("Phase", 4, 0, fftSize, dataPtr, bufSize);
+    //sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::AdvancedPhase, 0, fftSize, &dataPtr, &bufSize);
+    //scaleChart->SetPlotInfo("AdPhase", 5, 0, fftSize, dataPtr, bufSize);
+    //sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PendingKick, 0, fftSize, &dataPtr, &bufSize); /* so far zero values */
+    //scaleChart->SetPlotInfo("Kick", 7, 0, fftSize, dataPtr, bufSize);
+    //sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Accumulator, 0, fftSize, &dataPtr, &bufSize); /* resolution 0.1 */
+    //scaleChart->SetPlotInfo("Accu", 8, 0, fftSize, dataPtr, bufSize);
 }
 
 bool setAudioSource(PitchShifting::Parameters& param, PitchShifting::Stretcher* sther,

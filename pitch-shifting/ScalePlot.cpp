@@ -7,7 +7,7 @@ GLUI::ScalePlot::ScalePlot(const char* surffix) : PlotChartBase(surffix),
 	dataPlotTitle = IdenticalLabel("scale");
 }
 
-void GLUI::ScalePlot::SetPlotInfo(const char* name, int type, int ch, int fftsize, double* dataptr, int size)
+void GLUI::ScalePlot::SetPlotInfo(const char* name, int type, int ch, int fftsize, double* dataptr, int size, double factor)
 {
 	fftSize = fftsize;
 	// NOTE: if type+ch 's dataptr or size will change in runtime, ScaleData can not be map key,
@@ -20,9 +20,16 @@ void GLUI::ScalePlot::SetPlotInfo(const char* name, int type, int ch, int fftsiz
 			plot->Resize(size);
 	}
 	else {
-		auto data = ScaleData(name, type, ch, dataptr, size);
+		auto data = ScaleData(name, type, ch, dataptr, size, factor);
 		AmplitudeBuffer buffer(size);
 		plotBuffers[data] = buffer;
+		// TODO: debug with prevMag, try to calc from real and imag for power of frequences
+		if (data.dataType == 6) {
+			double* calcPtr = (double*)malloc(sizeof(double) * size);
+			auto data2 = ScaleData("Calc", 12, 0, calcPtr, size);
+			AmplitudeBuffer buffer2(size);
+			plotBuffers[data2] = buffer2;
+		}
 	}
 }
 
@@ -43,9 +50,51 @@ void GLUI::ScalePlot::UpdatePlotWith(const ScaleData& data, AmplitudeBuffer& plo
 
 	if (bufSize == 0 || dataPtr == nullptr) return;
 
+	// TODO: debug with prevMag, try to calc from real and imag for power of frequences
+	if (data.dataType == 6) {
+		auto real = plotBuffers.find(ScaleData(nullptr, 1, 0));
+		auto imag = plotBuffers.find(ScaleData(nullptr, 2, 0));
+		auto calc = plotBuffers.find(ScaleData(nullptr, 12, 0));
+		if (real != plotBuffers.end() && imag != plotBuffers.end() && calc != plotBuffers.end()) {
+			for (int i = 0; i < bufSize; i++) {
+				auto calcVal = sqrt(
+					(double)real->second.Amplitudes[i].p * real->second.Amplitudes[i].p +
+					(double)imag->second.Amplitudes[i].p * imag->second.Amplitudes[i].p
+					);
+				calcVal *= 10.f;
+				if (i < calc->second.Amplitudes.size()) {
+					calc->second.Amplitudes[i].p = calcVal;
+					calc->second.Amplitudes[i].x = i;
+				} else {
+					calc->second.PushBack(i, calcVal, 0);
+				}
+			}
+			ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
+			ImPlot::PlotShaded(calc->first.label.c_str(),
+				&calc->second.Amplitudes[0].x,
+				&calc->second.Amplitudes[0].p,
+				&calc->second.Amplitudes[0].n,
+				bufSize, 0, 0, 3 * sizeof(float));
+			ImPlot::PopStyleVar();
+			ImPlot::PlotLine(calc->first.label.c_str(),
+				&calc->second.Amplitudes[0].x,
+				&calc->second.Amplitudes[0].p,
+				bufSize, 0, 0, 3 * sizeof(float));
+			ImPlot::PlotLine(calc->first.label.c_str(),
+				&calc->second.Amplitudes[0].x,
+				&calc->second.Amplitudes[0].n,
+				bufSize, 0, 0, 3 * sizeof(float));
+		}
+	}
+
 	for (int i = 0; i < bufSize; i++) {
 		float pos = (dataPtr[i] > 0 ? dataPtr[i] : 0.f);
 		float neg = (dataPtr[i] < 0 ? dataPtr[i] : 0.f);
+		// scale the amplitudes with factor
+		if (data.scaleFactor != 1.0f) {
+			pos *= data.scaleFactor;
+			neg *= data.scaleFactor;
+		}
 		if (i < plotBuffer.Amplitudes.size()) {
 			plotBuffer.Amplitudes[i].x = i;
 			plotBuffer.Amplitudes[i].p = pos;
