@@ -180,7 +180,7 @@ public:
         Spare // buf size
     };
     int GetFormantFFTSize();
-    RubberBand::R3Stretcher::FormantData* GetFormantData(FormantDataType type, int channel, int* fftSize, double** dataPtr, int* bufSize);
+    void GetFormantData(FormantDataType type, int channel, int* fftSize, double** dataPtr, int* bufSize);
     
     /* for getting scale data */
     enum ScaleDataType : int {

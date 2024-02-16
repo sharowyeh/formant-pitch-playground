@@ -110,30 +110,22 @@ int Stretcher::GetFormantFFTSize()
     return 0;
 }
 
-RubberBand::R3Stretcher::FormantData* Stretcher::GetFormantData(FormantDataType type, int channel, int* fftSize, double** dataPtr, int* bufSize)
+void Stretcher::GetFormantData(FormantDataType type, int channel, int* fftSize, double** dataPtr, int* bufSize)
 {
-    auto data = pts->getFormantData(channel);
-    if (data == nullptr) return nullptr;
-
-    auto ptr = static_cast<std::unique_ptr<RubberBand::R3Stretcher::FormantData>*>(data);
-    auto formant = ptr->get();
-    if (formant == nullptr) return nullptr;
-    
-    *fftSize = formant->fftSize;
-    *bufSize = formant->fftSize / 2 + 1;
     switch (type) {
     case FormantDataType::Cepstra:
-        *bufSize = formant->fftSize;
-        *dataPtr = formant->cepstra.data();
+        pts->getFormantData(channel, "cepstra", fftSize, dataPtr);
+        *bufSize = *fftSize;
         break;
     case FormantDataType::Envelope:
-        *dataPtr = formant->envelope.data();
+        pts->getFormantData(channel, "envelope", fftSize, dataPtr);
+        *bufSize = *fftSize / 2 + 1;
         break;
     case FormantDataType::Spare:
-        *dataPtr = formant->spare.data();
+        pts->getFormantData(channel, "spare", fftSize, dataPtr);
+        *bufSize = *fftSize / 2 + 1;
         break;
     }
-    return formant;
 }
 
 int Stretcher::GetChannelScaleSizes(int channel, int* fftSizes)
@@ -154,8 +146,10 @@ void* Stretcher::GetChannelScaleData(ScaleDataType type, int channel, int fftSiz
     auto data = pts->getScaleData(channel, fftSize);
     if (data == nullptr) return nullptr;
 
-    auto ptr = static_cast<std::shared_ptr<RubberBand::R3Stretcher::ChannelScaleData>*>(data);
-    auto scale = ptr->get();
+    //auto ptr = static_cast<std::shared_ptr<RubberBand::R3Stretcher::ChannelScaleData>*>(data);
+    //auto scale = ptr->get();
+    //auto ptr = (RubberBand::R3Stretcher::ChannelScaleData*)data;
+    auto scale = (RubberBand::R3Stretcher::ChannelScaleData*)data;
     if (scale == nullptr) return nullptr;
 
     *bufSize = scale->bufSize;

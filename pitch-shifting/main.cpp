@@ -235,7 +235,8 @@ void setGLWindow(PitchShifting::Parameters* param)
 void mapDataPtrToGuiPlot(PitchShifting::Stretcher* sther) {
     auto version = sther->GetLibraryVersion();
     printf("rubberband version:%s\n", version.c_str());
-    auto ptr_of_shared_ptr = sther->GetChannelData();
+    // NOTE: gcc will get invalid address from pointer of channel data in vector directly
+    //auto ptr_of_shared_ptr = sther->GetChannelData();
     auto formantFFTSize = sther->GetFormantFFTSize();
     auto scaleSizes = sther->GetChannelScaleSizes(0);
     std::cout << "got channel data: formant fft size:" << formantFFTSize << " scale size count:" << scaleSizes << std::endl;
