@@ -151,12 +151,14 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
       (multiply buf+offset2)
       ```
     - classification scale uses given inhop, and own cd->readahead(begins from buf+offset+inhop) instead of scale timeDomain data
-    - fft shift, fft forward (to scale's timeDomain or classify readahead) and catesian-polar convert to each scales
+    - fft shift, fft forward (to scale's timeDomain or classify readahead) and catesian-polar convert for each scales
       - fft shift swaps second half and first half time domain signals data
       - given time domain data calls fft real to complex to get real (scale->rea) and imaginary (scale->imag) data
       - convert output cartesian(x,y) data to polar(r,theta) data
+        - magnitude = sqrt(real * real + imag * imag)
+        - phase = atan2(imag, real)
       - normalize scale->mag by fft size
-    - analyseFormant() and adjustFormant()
+    - analyseFormant()
       - given normalized scale->mag calls fft complex to real to get cd->formant->cepstra
         - cepstram: normalize freq domain(likes dB and reduce noise), than apply ifft transform
         - eg, Mei-Frequency Cepstrum Coefficients for speech recognition
@@ -165,19 +167,26 @@ https://github.com/jiemojiemo/rubberband_pitch_shift_plugin
       - cepstra cutoff by sample rate / 650, and normalize by fft size
       - given cepstra data calls fft read to complex to get output formant->envelope and formant->spara
       - exp then sqrt first half of formant->envelope (bin count, = fft size/2+1)
+    - adjustFormant()
       - calculate target factor to each scales by formant fft size, target factor= formant fft size/scale fft size
       - apply formant by calculated source factor, source factor= target factor/formant scale (note pitch shifting also affact formant scale)
-      - TODO: check configuration.fftBandLimits
+      - corresponding band is defined from guide ctor by windowed fft scales and nyquist
       - based on cd->scales->fft size is band fft size, get source and target envelope value at(i * factor)
       - multiply magnitue scale->mag by ratio (source/target envelope)
-    - use classification scale to get bin segmentation, copy next cd->classification to cd->scale->mag
-      - also record to cd->prevSegmentation, current and the next
-    - update all fft parameters to guide via updateGuidance TODO: check guide class
-    - analysis channel end
-  - Phase update across all channels: TODO
-    - GuidedPhaseAdvance::advance to each scales m_channelAssembly.outPhase (ptr assigned by scale->advancedPhase)
+    - use classification scale to get bin segmentation
+      - copy cd->nextClassification(may contains previous magnitude data) to current classification
+      - classify current magnitude data to cd->nextClasification
+        - TODO: check classify func in bin classifer class
+      - swap cd->prevSegmentation, current and next segmentations
+    - update above analysis parameters to cd->guidance
+      - TODO: check updateGuidance func in guide class
+    - analysisChannel() end
+  - Phase update across all channels: 
+    - store all channels data to m_channelAssembly (iterated by scales)
+    - scale->guided.advance() to m_channelAssembly.outPhase(the ptr is assigned by scale->advancedPhase)
+      - TODO: check advance in GuidedPhaseAdvance
       - princarg = principal argument, phase(angle) normalization between -pi to pi
-  - Resynthesis: TODO
+  - Resynthesis: TODO synthesiseChannel()
   - Resample: post-resampling: TODO
   - Emit: TODO
   - consume end
