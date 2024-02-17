@@ -2,7 +2,7 @@
     "tasks": [
         {
             "type": "cppbuild",
-            "label": "C/C++: clang++ build active file",
+            "label": "C/C++: clang++ build active file (console only)",
             "command": "/usr/bin/clang++",
             "args": [
                 "-fcolor-diagnostics",
@@ -10,19 +10,36 @@
                 "-std=c++17",
                 "-stdlib=libc++",
                 "-g", // set for include debugging info
-                "${file}",
+                "${fileDirname}/main.cpp", // specify main instead selected .cpp
                 "${fileDirname}/stretcher.cpp",
-                "-o",
-                "${fileDirname}/${fileBasenameNoExtension}.out",
+                "${fileDirname}/helper.cpp",
+                "${fileDirname}/parameters.cpp",
+                "${workspaceFolder}/imgui/*.cpp", // need imgui for gui
+                "${fileDirname}/Window.cpp",
+                "${fileDirname}/CtrlForm.cpp",
+                "${fileDirname}/TimeoutPopup.cpp",
+                "${fileDirname}/Waveform.cpp",
+                "${fileDirname}/RealTimePlot.cpp",
+                "${fileDirname}/ScalePlot.cpp",
                 "-I${fileDirname}",
                 "-I${workspaceFolder}/../rubberband",
                 "-I/opt/homebrew/include",
-                "-L${workspaceFolder}/../rubberband/build", // set for using own built binaries
+                "-L${workspaceFolder}/../rubberband/build",
                 "-L/opt/homebrew/lib",
+                "-L/opt/homebrew/Cellar/glfw/3.3.8/lib", // try the opengl 3rd party lib from homebrew?
+				"-lglfw",
+				"-L/opt/homebrew/Cellar/glew/2.2.0_1/lib", // try the opengl 3rd party lib from homebrew?
+				"-lGLEW",
+                "-L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib", // seems for libclang?
                 "-lportaudio",
                 "-lrubberband",
                 "-lsndfile",
                 "-lncurses", // for terminal user input
+				"-I${workspaceFolder}/imgui",
+				"-framework",
+				"OpenGL", // NOTE: opengl native support was obsoleted in macOS, may need homebrew by libopengl?
+                "-o",
+                "${fileDirname}/${fileBasenameNoExtension}.out",
                 "-Wl,-rpath,@executable_path", // for own built dylib with @rpath
             ],
             "options": {
@@ -31,10 +48,7 @@
             "problemMatcher": [
                 "$gcc"
             ],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
+            "group": "build",
             "dependsOn": [
                 "copy own built dylib from rubberband"
             ],
@@ -46,13 +60,55 @@
             "command": "cp",
             "args": [
                 "${workspaceFolder}/../rubberband/build/*.dylib",
-                "${fileDirname}"
+                "${workspaceFolder}/pitch-shifting"
             ],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
+            "group": "build",
             "detail": "Rubberband dylib is built with @rpath and dont want to change too many things"
+        },
+        {
+            "type": "cppbuild",
+            "label": "C/C++: brew g++ build all cpp (need to remove comment)",
+            "command": "/opt/homebrew/bin/g++-13",
+            "args": [
+                "-fdiagnostics-color=always",
+                //"-I${fileDirname}", // just use specify name instead of selected file
+                "-I${workspaceFolder}/pitch-shifting",
+                "-I${workspaceFolder}/../rubberband",
+				"-I${workspaceFolder}/imgui",
+                "-I/opt/homebrew/include",
+                "-L${workspaceFolder}/../rubberband/build",
+                "-L/opt/homebrew/lib",
+                "-lportaudio",
+                "-lrubberband",
+                "-lsndfile",
+                "-lncurses",
+                "-I${workspaceFolder}/imgui",
+                "-L/opt/homebrew/Cellar/glfw/3.3.8/lib",
+                "-lglfw",
+                "-L/opt/homebrew/Cellar/glew/2.2.0_1/lib",
+                "-lGLEW",
+                "-framework",
+                "OpenGL",
+                "-g",
+                "${workspaceFolder}/pitch-shifting/*.cpp",
+                "${workspaceFolder}/imgui/*.cpp",
+                "-o",
+                //"${fileDirname}/${fileBasenameNoExtension}.out",
+                "${workspaceFolder}/pitch-shifting/main.out",
+                "-Wl,-rpath,@executable_path"
+            ],
+            "options": {
+                //"cwd": "${fileDirname}"
+                "cwd": "${workspaceFolder}/pitch-shifting",
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": "build",
+            "dependsOn": [
+                "copy own built dylib from rubberband"
+            ],
+            "detail": "Config by own is better than auto-generated from vscode debugger..."
         }
     ],
     "version": "2.0.0"

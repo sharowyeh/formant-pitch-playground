@@ -7,7 +7,7 @@ GLUI::ScalePlot::ScalePlot(const char* surffix) : PlotChartBase(surffix),
 	dataPlotTitle = IdenticalLabel("scale");
 }
 
-void GLUI::ScalePlot::SetPlotInfo(const char* name, int type, int ch, int fftsize, double* dataptr, int size)
+void GLUI::ScalePlot::SetPlotInfo(const char* name, int type, int ch, int fftsize, double* dataptr, int size, double factor)
 {
 	fftSize = fftsize;
 	// NOTE: if type+ch 's dataptr or size will change in runtime, ScaleData can not be map key,
@@ -20,7 +20,7 @@ void GLUI::ScalePlot::SetPlotInfo(const char* name, int type, int ch, int fftsiz
 			plot->Resize(size);
 	}
 	else {
-		auto data = ScaleData(name, type, ch, dataptr, size);
+		auto data = ScaleData(name, type, ch, dataptr, size, factor);
 		AmplitudeBuffer buffer(size);
 		plotBuffers[data] = buffer;
 	}
@@ -36,7 +36,7 @@ void GLUI::ScalePlot::SetPlotInfo(int type, int ch, int fftsize, double* dataptr
 	SetPlotInfo(label.c_str(), type, ch, fftsize, dataptr, size);
 }
 
-void GLUI::ScalePlot::UpdatePlot(const ScaleData& data, AmplitudeBuffer& plotBuffer)
+void GLUI::ScalePlot::UpdatePlotWith(const ScaleData& data, AmplitudeBuffer& plotBuffer)
 {
 	auto bufSize = data.bufSize;
 	auto dataPtr = data.dataPtr;
@@ -46,6 +46,11 @@ void GLUI::ScalePlot::UpdatePlot(const ScaleData& data, AmplitudeBuffer& plotBuf
 	for (int i = 0; i < bufSize; i++) {
 		float pos = (dataPtr[i] > 0 ? dataPtr[i] : 0.f);
 		float neg = (dataPtr[i] < 0 ? dataPtr[i] : 0.f);
+		// scale the amplitudes with factor
+		if (data.scaleFactor != 1.0f) {
+			pos *= data.scaleFactor;
+			neg *= data.scaleFactor;
+		}
 		if (i < plotBuffer.Amplitudes.size()) {
 			plotBuffer.Amplitudes[i].x = i;
 			plotBuffer.Amplitudes[i].p = pos;
@@ -90,7 +95,7 @@ void GLUI::ScalePlot::UpdatePlot()
 		ImPlot::SetupAxesLimits(0 - bufSize / 4, bufSize / 8 * 9, -IM_PI, IM_PI);
 		
 		for (auto it = plotBuffers.begin(); it != plotBuffers.end(); it++) {
-			UpdatePlot(it->first, it->second);
+			UpdatePlotWith(it->first, it->second);
 		}
 		
 		ImPlot::EndPlot();

@@ -51,6 +51,9 @@ using std::endl;
 
 // for copy_if to select GUI ease of use datasets
 #include <algorithm>
+
+// NOTE: about the glfwnative support in macOS, using latest imgui version will cause compile error
+//   from imgui_impl_glfw.cpp includes <GLFW/glfw3native.h> for glfwGetCocoaWindow()
 // for opengl gui
 #include "Window.hpp"
 #include "CtrlForm.h"
@@ -99,6 +102,8 @@ std::map<int, void*> uiCallbackFnMap;
 void uiCreate(const std::map<int, void*>& cbFnMapRef, PitchShifting::Parameters* paramPtr)
 {
     cerr << "UI thread debug level: " << paramPtr->debug << endl;
+    // glfw window can not run in background thread fo macOS, refer to
+    // https://discourse.glfw.org/t/multithreading-glfw/573/5
     //DEBUG: singleton window instance
     window = GLUI::Window::Create("Rubberband GUI", 1366, 768);
     window->OnRenderFrame = [](GLUI::Window* wnd) {
@@ -194,14 +199,23 @@ void onButtonClicked(void* inst, GLUI::ButtonEventArgs param) {
     }
 }
 
+// typedef the function pointers for further usage
+typedef void(*pfnWindowStateChanged)(int);
+typedef void(*pfnButtonClicked)(void*, GLUI::ButtonEventArgs);
+
 void setGLWindow(PitchShifting::Parameters* param)
 {
     // only run once
     //if (uiThread) return;
     // init callback function pointers
     uiCallbackFnMap.clear();
+#ifdef _WIN32
+    uiCallbackFnMap[ON_WINDOW_STATE_CHANGED] = &onWindowStateChanged;
+    uiCallbackFnMap[ON_BUTTON_CLICKED] = &onButtonClicked;
+#else
     uiCallbackFnMap[ON_WINDOW_STATE_CHANGED] = (void*)onWindowStateChanged;
     uiCallbackFnMap[ON_BUTTON_CLICKED] = (void*)onButtonClicked;
+#endif
     // UI thread reporting GUI states
     uiWindowState = NONE;
     uiCtrlFormData = nullptr;
@@ -219,8 +233,10 @@ void setGLWindow(PitchShifting::Parameters* param)
 
 /* associate data pointer between rubberband stretcher data and GUI data present source */
 void mapDataPtrToGuiPlot(PitchShifting::Stretcher* sther) {
-
-    auto ptr_of_shared_ptr = sther->GetChannelData();
+    auto version = sther->GetLibraryVersion();
+    printf("rubberband version:%s\n", version.c_str());
+    // NOTE: gcc will get invalid address from pointer of channel data in vector directly
+    //auto ptr_of_shared_ptr = sther->GetChannelData();
     auto formantFFTSize = sther->GetFormantFFTSize();
     auto scaleSizes = sther->GetChannelScaleSizes(0);
     std::cout << "got channel data: formant fft size:" << formantFFTSize << " scale size count:" << scaleSizes << std::endl;
@@ -238,22 +254,23 @@ void mapDataPtrToGuiPlot(PitchShifting::Stretcher* sther) {
     formantChart->SetPlotInfo("Spare", 3, 0, formantFFTSize, dataPtr, bufSize);
     int fftSize = formantFFTSize; // scale data just using formant fft size 2048
     //int fftSize = pow(2, (i + 10)); // 1024, 2048, 4096
+    //int bufSize = fftSize / 2 + 1; // 513, 1025, 2049 (bin size)
     sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Real, 0, fftSize, &dataPtr, &bufSize); /* resolution 100 */
     scaleChart->SetPlotInfo("Real", 1, 0, fftSize, dataPtr, bufSize);
     sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Imaginary, 0, fftSize, &dataPtr, &bufSize);
     scaleChart->SetPlotInfo("Imag", 2, 0, fftSize, dataPtr, bufSize);
-    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Magnitude, 0, fftSize, &dataPtr, &bufSize); /* resolution 0.1 */
-    scaleChart->SetPlotInfo("Mag", 3, 0, fftSize, dataPtr, bufSize);
+    //sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Magnitude, 0, fftSize, &dataPtr, &bufSize); /* resolution 0.1 */
+    //scaleChart->SetPlotInfo("Mag", 3, 0, fftSize, dataPtr, bufSize);
     sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PreviousMagnitude, 0, fftSize, &dataPtr, &bufSize);
-    scaleChart->SetPlotInfo("PrevMag", 6, 0, fftSize, dataPtr, bufSize);
-    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Phase, 0, fftSize, &dataPtr, &bufSize); /* resolution pi */
-    scaleChart->SetPlotInfo("Phase", 4, 0, fftSize, dataPtr, bufSize);
-    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::AdvancedPhase, 0, fftSize, &dataPtr, &bufSize);
-    scaleChart->SetPlotInfo("AdPhase", 5, 0, fftSize, dataPtr, bufSize);
-    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PendingKick, 0, fftSize, &dataPtr, &bufSize); /* so far zero values */
-    scaleChart->SetPlotInfo("Kick", 7, 0, fftSize, dataPtr, bufSize);
-    sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Accumulator, 0, fftSize, &dataPtr, &bufSize); /* resolution 0.1 */
-    scaleChart->SetPlotInfo("Accu", 8, 0, fftSize, dataPtr, bufSize);
+    scaleChart->SetPlotInfo("PrevMag", 6, 0, fftSize, dataPtr, bufSize, 1000.f);
+    //sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Phase, 0, fftSize, &dataPtr, &bufSize); /* resolution pi */
+    //scaleChart->SetPlotInfo("Phase", 4, 0, fftSize, dataPtr, bufSize);
+    //sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::AdvancedPhase, 0, fftSize, &dataPtr, &bufSize);
+    //scaleChart->SetPlotInfo("AdPhase", 5, 0, fftSize, dataPtr, bufSize);
+    //sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::PendingKick, 0, fftSize, &dataPtr, &bufSize); /* so far zero values */
+    //scaleChart->SetPlotInfo("Kick", 7, 0, fftSize, dataPtr, bufSize);
+    //sther->GetChannelScaleData(PitchShifting::Stretcher::ScaleDataType::Accumulator, 0, fftSize, &dataPtr, &bufSize); /* resolution 0.1 */
+    //scaleChart->SetPlotInfo("Accu", 8, 0, fftSize, dataPtr, bufSize);
 }
 
 bool setAudioSource(PitchShifting::Parameters& param, PitchShifting::Stretcher* sther,
@@ -345,7 +362,8 @@ void processAudio(PitchShifting::Stretcher* sther, PitchShifting::Parameters* pa
         int frame = 0;
         int percent = 0;
 
-        sther->SetKeyFrameMap();
+        // macOS need to recompiling rubberbandstretcher for setKeyFrameMap()
+        //sther->SetKeyFrameMap();
 
         // reset counters
         sther->inputCount = 0;
@@ -560,7 +578,12 @@ int main(int argc, char **argv)
     // assign total frames count to stretcher after audio source accepted
     sther->totalFramesCount = inputFrames;
 
-    // section for GUI initialization before stretcher creation(after ctor, but before rubberband configuration)
+    // if use capture device as input, given duration or infinity -1?
+    if (param.inAudioType == SourceType::AudioDevice) {
+        inputFrames = std::numeric_limits<int64_t>::max();//sampleRate * 3600 * 3; // 3hr for long duration test 
+    }
+
+    //DEBUG: section for GUI initialization before stretcher creation(after ctor, but before rubber band configuration)
     if (param.gui) {
         // set audio information to GUI plot, given inFrame must afterward sther->SetInputStream for buffer initialization
         inWaveform->SetAudioInfo(sampleRate, channels, sther->inFrame, defBlockSize * channels);
@@ -610,6 +633,10 @@ int main(int argc, char **argv)
     (void)gettimeofday(&tv, 0);
     
     setWaitKey('q'); // set wait key for user interrupts process loop (mainly to cancel audio stream realtime works)
+
+    // before create rubberband stretcher, pitch/formant/time ratio, sample rate and channels must be assigned
+    //sther->Create();
+    //mapDataPtrToGuiPlot(sther);
 
     sther->StartInputStream();
     sther->StartOutputStream();

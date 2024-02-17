@@ -134,7 +134,11 @@ void GLUI::CtrlForm::RefreshSourceList() {
 	if (inFileIndex != -1 && inFileIndex < inFileList.size()) {
 		auto len = inFileList[inFileIndex].desc.length() + 1;
 		inFile = (char*)malloc(len);
+#ifdef _WIN32
 		memcpy_s(inFile, len, inFileList[inFileIndex].desc.c_str(), len);
+#else
+		memcpy(inFile, inFileList[inFileIndex].desc.c_str(), len);
+#endif
 	}
 	sther->ListLocalFiles(anySrc);
 	SetAudioFileList(anySrc, inFile, nullptr);
@@ -144,10 +148,10 @@ void GLUI::CtrlForm::RefreshSourceList() {
 bool world_check = false;
 
 // not work
-ImGuiKey& operator++(ImGuiKey& key) {
-	int num = static_cast<int>(key);
-	return key = static_cast<ImGuiKey>(++num);
-}
+// ImGuiKey& operator++(ImGuiKey& key) {
+// 	int num = static_cast<int>(key);
+// 	return key = static_cast<ImGuiKey>(++num);
+// }
 
 void GLUI::CtrlForm::Render()
 {
