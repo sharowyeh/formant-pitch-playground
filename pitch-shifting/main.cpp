@@ -15,6 +15,8 @@
 using PitchShifting::SourceType;
 using PitchShifting::SourceDesc;
 std::thread* stherThread = nullptr;
+// in/out frame block ring buffer size, for both stretcher portaudio callback and waveform GUI
+const int defBlockSize = 1024;
 
 // for rubberband profiler to dump signal process information,
 // get rubberband source code from github within same system installed version
@@ -344,7 +346,7 @@ void processAudio(PitchShifting::Stretcher* sther, PitchShifting::Parameters* pa
 
         /* DEBUG: playground with channel data */
         if (param->gui) {
-            mapDataPtrToGuiPlot(sther);
+            //mapDataPtrToGuiPlot(sther);
         }
 
         if (param->inAudioType == SourceType::AudioFile) {
@@ -450,6 +452,123 @@ void processAudio(PitchShifting::Stretcher* sther, PitchShifting::Parameters* pa
     sther->stopped = true;
 }
 
+int setPitchAndFormant(PitchShifting::Parameters& param, PitchShifting::Stretcher* sther)
+{
+    if (param.pitchshift != 0.0) {
+        param.frequencyshift *= pow(2.0, param.pitchshift / 12.0);
+        cerr << "Pitch shift semitones: " << param.pitchshift << endl;
+    }
+
+    cerr << "Using time ratio " << param.timeratio;
+
+    if (!param.freqOrPitchMapSpecified) {
+        cerr << " and frequency ratio " << param.frequencyshift << " for pitch shifting" << endl;
+    }
+    else {
+        cerr << " and initial frequency ratio " << param.frequencyshift << "for pitch shifting" << endl;
+    }
+
+    // NOTE: formant adjustment only works to r3
+    if (param.formantshift != 0.0) {
+        cerr << "Formant shift semitones: " << param.formantshift << endl;
+    }
+    double formantShift = pow(2.0, param.formantshift / 12.0);
+
+    // default formant scale = 1.0 / freq(pitch)shift if formant enabled
+    if (param.formant) {
+        // NOTE: pitch changes also affact formant scaling
+        param.formantscale = 1.0 / param.frequencyshift;
+        cerr << "Formant preserved default " << param.formantscale << " by pitch shift" << endl;
+        param.formantscale *= formantShift;
+        cerr << "Formant ratio " << formantShift << ", results formant scale " << param.formantscale << endl;
+    }
+
+    // apply gain, voltage level for audio signal will be pow(10.f, db / 20.f)
+    if (param.inputgaindb != 0.0) {
+        cerr << "Input gain db: " << param.inputgaindb << endl;
+        double inputgainlv = pow(10.f, param.inputgaindb / 20.f);
+        cerr << "Input gain level: " << inputgainlv << endl;
+        sther->SetInputGain(inputgainlv);
+    }
+
+    return 0;
+}
+
+// audio info changes depend on given input/output selection (from dispatchGuiEventLoop())
+int setAudioInfo(PitchShifting::Parameters& param, PitchShifting::Stretcher* sther,
+    int& sampleRate, int& channels, int& format, int64_t& inputFrames)
+{
+    // assign total frames count to stretcher after audio source accepted
+    sther->totalFramesCount = inputFrames;
+
+    // if use capture device as input, given duration or infinity -1?
+    if (param.inAudioType == SourceType::AudioDevice) {
+        inputFrames = std::numeric_limits<int64_t>::max();//sampleRate * 3600 * 3; // 3hr for long duration test 
+    }
+
+    //DEBUG: section for GUI initialization before stretcher creation(after ctor, but before rubber band configuration)
+    if (param.gui) {
+        // set audio information to GUI plot, given inFrame must afterward sther->SetInputStream for buffer initialization
+        inWaveform->SetAudioInfo(sampleRate, channels, sther->inFrame, defBlockSize * channels);
+        outWaveform->SetAudioInfo(
+            sther->outSrcDesc.sampleRate,
+            sther->outSrcDesc.outputChannels,
+            sther->outFrame,
+            defBlockSize * sther->outSrcDesc.outputChannels);
+    }
+
+    return 0;
+}
+
+// true: leave loop, false: continue loop
+bool dispatchGuiEventLoop(PitchShifting::Parameters& param, PitchShifting::Stretcher* sther,
+    int& sampleRate, int& channels, int& format, int64_t& inputFrames)
+{
+    bool audioSrcChanged = false;
+    bool audioSrcChecked = false;
+    auto data = uiCtrlFormData.load();
+    if (data == nullptr) return false;
+
+    switch (uiSetAudioButton) {
+    case GLUI::CtrlFormIds::SetInputDeviceButton:
+        sther->CloseInputFile();
+        param.inAudioType = SourceType::AudioDevice;
+        param.inDeviceIdx = data->InputSource.index;
+        audioSrcChanged = true;
+        break;
+    case GLUI::CtrlFormIds::SetOutputDeviceButton:
+        sther->CloseOutputFile();
+        param.outAudioType = SourceType::AudioDevice;
+        param.outDeviceIdx = data->OutputSource.index;
+        audioSrcChanged = true;
+        break;
+    case GLUI::CtrlFormIds::SetInputFileButton:
+        sther->CloseInputStream();
+        param.inAudioType = SourceType::AudioFile;
+        param.inFilePath = data->InputSource.desc;
+        audioSrcChanged = true;
+        break;
+    case GLUI::CtrlFormIds::SetAdjustmentButton:
+        param.pitchshift = data->PitchShift;
+        param.formantshift = data->FormantShift;
+        param.formant = (param.formantshift != 0.0 ? true : false);
+        param.inputgaindb = data->InputGain;
+        cerr << "pitch/formant/gain changed by user " << param.pitchshift << ", " << param.formantshift << ", " << param.inputgaindb << endl;
+        // just set, not go to check audio invoking start stretcher
+        break;
+    default:
+        break;
+    }
+    //TODO: reset button id flag, at here? you sure?
+    uiSetAudioButton = 0;
+
+    if (audioSrcChanged) {
+        audioSrcChecked = setAudioSource(param, sther, sampleRate, channels, format, inputFrames);
+    }
+
+    return audioSrcChanged && audioSrcChecked;
+}
+
 int main(int argc, char **argv)
 {
     PitchShifting::Parameters param;
@@ -464,7 +583,6 @@ int main(int argc, char **argv)
     }
     
     // start stretcher class initialization here
-    const int defBlockSize = 1024;
     PitchShifting::Stretcher *sther = new PitchShifting::Stretcher(&param, defBlockSize, 1);
 
     sther->LoadTimeMap(param.timeMapFile);
@@ -533,102 +651,12 @@ int main(int argc, char **argv)
                 return 1;
             }
 
-            bool audioSrcChanged = false;
-            auto data = uiCtrlFormData.load();
-            if (data == nullptr) continue;
-
-            switch (uiSetAudioButton) {
-            case GLUI::CtrlFormIds::SetInputDeviceButton:
-                sther->CloseInputFile();
-                param.inAudioType = SourceType::AudioDevice;
-                param.inDeviceIdx = data->InputSource.index;
-                audioSrcChanged = true;
-                break;
-            case GLUI::CtrlFormIds::SetOutputDeviceButton:
-                sther->CloseOutputFile();
-                param.outAudioType = SourceType::AudioDevice;
-                param.outDeviceIdx = data->OutputSource.index;
-                audioSrcChanged = true;
-                break;
-            case GLUI::CtrlFormIds::SetInputFileButton:
-                sther->CloseInputStream();
-                param.inAudioType = SourceType::AudioFile;
-                param.inFilePath = data->InputSource.desc;
-                audioSrcChanged = true;
-                break;
-            case GLUI::CtrlFormIds::SetAdjustmentButton:
-                param.pitchshift = data->PitchShift;
-                param.formantshift = data->FormantShift;
-                param.formant = (param.formantshift != 0.0 ? true : false);
-                param.inputgaindb = data->InputGain;
-                cerr << "pitch/formant/gain changed by user " << param.pitchshift << ", " << param.formantshift << ", " << param.inputgaindb << endl;
-                // just set, not go to check audio invoking start stretcher
-                break;
-            default:
-                break;
-            }
-            //TODO: reset button id flag, at here? you sure?
-            uiSetAudioButton = 0;
-
-            if (audioSrcChanged) {
-                checkAudio = setAudioSource(param, sther, sampleRate, channels, format, inputFrames);
-            }
+            checkAudio = dispatchGuiEventLoop(param, sther, sampleRate, channels, format, inputFrames);
         }
     }
-    // assign total frames count to stretcher after audio source accepted
-    sther->totalFramesCount = inputFrames;
 
-    // if use capture device as input, given duration or infinity -1?
-    if (param.inAudioType == SourceType::AudioDevice) {
-        inputFrames = std::numeric_limits<int64_t>::max();//sampleRate * 3600 * 3; // 3hr for long duration test 
-    }
-
-    //DEBUG: section for GUI initialization before stretcher creation(after ctor, but before rubber band configuration)
-    if (param.gui) {
-        // set audio information to GUI plot, given inFrame must afterward sther->SetInputStream for buffer initialization
-        inWaveform->SetAudioInfo(sampleRate, channels, sther->inFrame, defBlockSize * channels);
-        outWaveform->SetAudioInfo(
-            sther->outSrcDesc.sampleRate,
-            sther->outSrcDesc.outputChannels,
-            sther->outFrame,
-            defBlockSize * sther->outSrcDesc.outputChannels);
-    }
-
-    if (param.pitchshift != 0.0) {
-        param.frequencyshift *= pow(2.0, param.pitchshift / 12.0);
-        cerr << "Pitch shift semitones: " << param.pitchshift << endl;
-    }
-
-    cerr << "Using time ratio " << param.timeratio;
-
-    if (!param.freqOrPitchMapSpecified) {
-        cerr << " and frequency ratio " << param.frequencyshift << " for pitch shifting" << endl;
-    } else {
-        cerr << " and initial frequency ratio " << param.frequencyshift << "for pitch shifting" << endl;
-    }
-
-    // NOTE: formant adjustment only works to r3
-    if (param.formantshift != 0.0) {
-        cerr << "Formant shift semitones: " << param.formantshift << endl;
-    }
-    double formantShift = pow(2.0, param.formantshift / 12.0);
-
-    // default formant scale = 1.0 / freq(pitch)shift if formant enabled
-    if (param.formant) {
-        // NOTE: pitch changes also affact formant scaling
-        param.formantscale = 1.0 / param.frequencyshift;
-        cerr << "Formant preserved default " << param.formantscale << " by pitch shift" << endl;
-        param.formantscale *= formantShift;
-        cerr << "Formant ratio " << formantShift << ", results formant scale " << param.formantscale << endl;
-    }
-    
-    // apply gain, voltage level for audio signal will be pow(10.f, db / 20.f)
-    if (param.inputgaindb != 0.0) {
-        cerr << "Input gain db: " << param.inputgaindb << endl;
-        double inputgainlv = pow(10.f, param.inputgaindb / 20.f);
-        cerr << "Input gain level: " << inputgainlv << endl;
-        sther->SetInputGain(inputgainlv);
-    }
+    setAudioInfo(param, sther, sampleRate, channels, format, inputFrames);
+    setPitchAndFormant(param, sther);
 
     (void)gettimeofday(&tv, 0);
     
@@ -653,6 +681,23 @@ int main(int argc, char **argv)
 
 		// keep GUI rendering to display charts
 		while (uiPrepareFrame() == 0) {
+            checkAudio = false;
+            if (sther->stopped == false)
+                continue;
+
+            // reset previous input device/file
+            sther->CloseInputFile();
+            sther->CloseInputStream();
+            //TODO: ensure the buffer is cleaned up, or input files is re-opened
+            // alternative ways to restart next rubberband stretcher
+            checkAudio = dispatchGuiEventLoop(param, sther, sampleRate, channels, format, inputFrames);
+            if (checkAudio) {
+                setAudioInfo(param, sther, sampleRate, channels, format, inputFrames);
+                setPitchAndFormant(param, sther);
+                //TODO: in windows, cannot draw scale plot from ptr if re-start, stretcher does not process audio if re-start
+                stherThread = new std::thread(bound);
+                stherThread->detach();
+            }
 		}
 		uiTerminate(uiCallbackFnMap);
 		if (uiWindowState == FnWindowStates::DESTROYED) {

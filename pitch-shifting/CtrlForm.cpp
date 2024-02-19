@@ -245,7 +245,8 @@ void GLUI::CtrlForm::Render()
 	if (ImGui::SliderFloat("InputGain(dB)", &sliderInputGain, -12.f, 12.f, "%.1f", ImGuiSliderFlags_None)) {
 		FormData.InputGain = sliderInputGain;
 	}
-	ImGui::Text("p: %.1f, f: %.1f, ig: %.1f", FormData.PitchShift, FormData.FormantShift, FormData.InputGain);
+	ImGui::Text("p: %.1f, f: %.1f, ig: %.1f, state:%s", FormData.PitchShift, FormData.FormantShift, FormData.InputGain,
+		(!sther ? "unknown" : (sther->stopped ? "stopped" : "running")));
 
 	if (ImGui::Checkbox("world", &world_check)) {
 
