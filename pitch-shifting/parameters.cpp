@@ -145,7 +145,12 @@ int Parameters::ParseOptions(int c, char** v)
     }
 
     if (version) {
-        cerr << RUBBERBAND_VERSION << endl;
+        cerr << "stretcher using rubberband version: " << RUBBERBAND_VERSION << endl;
+        return 0;
+    }
+
+    if (help || fullHelp) {
+        print_usage(fullHelp, isR3, myName);
         return 0;
     }
 
@@ -189,7 +194,8 @@ int Parameters::ParseOptions(int c, char** v)
     ResolveArguments();
 
     // given parameters must contain input and output wav files
-    if (help || fullHelp || !haveRatio || optind + 2 != argc) {
+    if (!haveRatio || optind + 2 != argc) {
+        cerr << "ERROR: at least one of ratio should be assigned, or opts not recognized" << endl;
         print_usage(fullHelp, isR3, myName);
         return 2;
     }
@@ -243,8 +249,8 @@ int Parameters::ParseOptions(int c, char** v)
             cerr << ")" << endl;
         }
     }
-    // because return code 0~2 represent leave process 
-    return -1;
+    // use common successful return 0, otherwise given arguments may invalid 
+    return 0;
 }
 
 int Parameters::ResolveArguments()

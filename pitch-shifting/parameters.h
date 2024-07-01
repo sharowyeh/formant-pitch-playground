@@ -70,7 +70,7 @@ public:
     Parameters(int c = 0, char** v = nullptr);
     /* 
      * given CLI arguments will overwrite arg from constructure
-     * \return -1=pass(continue), 0=pass(leave process), 1=failure(invalid options), 2=failure(insufficient arguments)
+     * \return 0=pass, 1=failure(invalid options), 2=failure(insufficient arguments)
      */
     int ParseOptions(int c = 0, char** v = nullptr);
 
