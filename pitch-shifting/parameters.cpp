@@ -189,7 +189,7 @@ int Parameters::ParseOptions(int c, char** v)
     ResolveArguments();
 
     // given parameters must contain input and output wav files
-    if (help || fullHelp || !haveRatio || optind + 2 != argc) {
+    if (help || fullHelp || !(haveRatio || listdev) || optind + 2 != argc) {
         print_usage(fullHelp, isR3, myName);
         return 2;
     }
